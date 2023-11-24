@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include "sqlite3/sqlite3.h"
 using namespace std;
 
 // Defining student class
@@ -70,6 +71,71 @@ private:
 
 
 int main() {
+    // Open sqlite database (create new database if not exist)
+    char** error_msg;
+    sqlite3 *db;
+    int rc = sqlite3_open("main_database.db", &db);
+
+    if( rc ) {
+        fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+        return(0);
+    } else {
+        fprintf(stderr, "Opened database successfully\n");
+    }
+
+    const char* sql_deflt_table = "CREATE TABLE IF NOT EXISTS student (" \
+        "number INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,"
+        "name TEXT NOT NULL," \
+        "username TEXT NOT NULL," \
+        "password TEXT NOT NULL" \
+    ");" \
+    \
+    "CREATE UNIQUE INDEX IF NOT EXISTS number ON student(number);" \
+    "CREATE UNIQUE INDEX IF NOT EXISTS username ON student(username);" \
+    \
+    "CREATE TABLE IF NOT EXISTS subject_list (" \
+        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL," \
+        "name TEXT NOT NULL," \
+        "sks TEXT NOT NULL);" \
+    \
+    "CREATE UNIQUE INDEX IF NOT EXISTS name ON subject_list(name);" \
+    \
+    "CREATE TABLE IF NOT EXISTS lecturer (" \
+        "number INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL," \
+        "name TEXT NOT NULL," \
+        "subject_lectured TEXT NOT NULL," \
+        "username TEXT NOT NULL," \
+        "password TEXT NOT NULL," \
+        "FOREIGN KEY (subject_lectured) REFERENCES subject_list(name)" \
+    ");"\
+    \
+    "CREATE UNIQUE INDEX IF NOT EXISTS number ON lecturer(number);" \
+    "CREATE UNIQUE INDEX IF NOT EXISTS username ON lecturer(username);" \
+    \
+    "CREATE TABLE IF NOT EXISTS score ("\
+        "student_name TEXT NOT NULL," \
+        "student_number INTEGER NOT NULL," \
+        "semester INTEGER NOT NULL," \
+        "subject TEXT NOT NULL," \
+        "score INTEGER NOT NULL," \
+        "grade INTEGER NOT NULL," \
+        "FOREIGN KEY(student_name) REFERENCES student(name)," \
+        "FOREIGN KEY(student_number) REFERENCES student(student_number)" \
+    ");";
+
+    rc = sqlite3_exec(db, sql_deflt_table, NULL, NULL, error_msg);
+
+    if( rc != SQLITE_OK ){
+      fprintf(stderr, "SQL error: %s\n", error_msg);
+      sqlite3_free(error_msg);
+   } else {
+      fprintf(stdout, "Records created successfully\n");
+   }
+
+
+
+
+    // Front-End
     int option;
     student student1;
     student1.name = "Jesse Pinkman";
@@ -142,6 +208,7 @@ int main() {
     else if(option == 3) {
         
         cin.ignore();
+        sqlite3_close(db);
     }
     else {
         cin.ignore();
@@ -150,4 +217,6 @@ int main() {
         system("clear");
         goto mainMenu;
     }
+
+    sqlite3_close(db);
 }
