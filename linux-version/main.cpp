@@ -76,7 +76,7 @@ int main() {
     sqlite3 *db;
     int rc = sqlite3_open("main_database.db", &db);
 
-    if( rc ) {
+    if(rc) {
         fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
         return(0);
     } else {
@@ -93,33 +93,30 @@ int main() {
     "CREATE UNIQUE INDEX IF NOT EXISTS number ON student(number);" \
     "CREATE UNIQUE INDEX IF NOT EXISTS username ON student(username);" \
     \
-    "CREATE TABLE IF NOT EXISTS subject_list (" \
-        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL," \
-        "name TEXT NOT NULL," \
-        "sks TEXT NOT NULL);" \
-    \
-    "CREATE UNIQUE INDEX IF NOT EXISTS name ON subject_list(name);" \
-    \
     "CREATE TABLE IF NOT EXISTS lecturer (" \
         "number INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL," \
         "name TEXT NOT NULL," \
-        "subject_lectured TEXT NOT NULL," \
         "username TEXT NOT NULL," \
-        "password TEXT NOT NULL," \
-        "FOREIGN KEY (subject_lectured) REFERENCES subject_list(name)" \
+        "password TEXT NOT NULL" \
     ");"\
     \
     "CREATE UNIQUE INDEX IF NOT EXISTS number ON lecturer(number);" \
     "CREATE UNIQUE INDEX IF NOT EXISTS username ON lecturer(username);" \
     \
+    "CREATE TABLE IF NOT EXISTS subject_list (" \
+        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL," \
+        "lecturer INTEGER NOT NULL," \
+        "name TEXT NOT NULL," \
+        "sks TEXT NOT NULL," \
+        "FOREIGN KEY(lecturer) REFERENCES lecturer(number)" \
+    ");"\
+    \
     "CREATE TABLE IF NOT EXISTS score ("\
-        "student_name TEXT NOT NULL," \
         "student_number INTEGER NOT NULL," \
         "semester INTEGER NOT NULL," \
         "subject TEXT NOT NULL," \
         "score INTEGER NOT NULL," \
         "grade INTEGER NOT NULL," \
-        "FOREIGN KEY(student_name) REFERENCES student(name)," \
         "FOREIGN KEY(student_number) REFERENCES student(student_number)" \
     ");";
 
@@ -128,9 +125,9 @@ int main() {
     if( rc != SQLITE_OK ){
       fprintf(stderr, "SQL error: %s\n", error_msg);
       sqlite3_free(error_msg);
-   } else {
-      fprintf(stdout, "Records created successfully\n");
-   }
+    } else {
+        fprintf(stdout, "Records created successfully\n");
+    }
 
 
 
@@ -220,3 +217,24 @@ int main() {
 
     sqlite3_close(db);
 }
+
+
+string gradeScore(string score) {
+        string grade;
+        // Convert score to int so that we can use operator
+        int score_int = stoi(score);
+
+        if(score_int > 90) {
+            return grade = "A";
+        }
+        else if(score_int > 80) {
+            return grade = "B";
+        }
+        else if(score_int > 70) {
+            return grade = "C";
+        }
+        else if(score_int > 60) {
+            return grade = "D";
+        }
+        else return grade = "E";
+    };
