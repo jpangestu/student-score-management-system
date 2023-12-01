@@ -10,13 +10,40 @@ using statement = std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)>;
 // Function prototype (forward declaration).
 database open_database(const char* name);
 void execute(sqlite3* db, const char* sql_query);
+statement create_statement(sqlite3* db, const string &sql_query);
 constexpr const char* default_schema();
 
 
 int main() {
     // Link existing (create new) database.
-    database db = open_database("try.db");
+    database db = open_database("main.db");
     execute(db.get(), default_schema());
+
+    string sql_query = R"(SELECT student_number, student.name, semester,
+    subject_list.name, lecturer, score, grade FROM score
+    INNER JOIN subject_list ON subject_list.id = score.subject_id
+    INNER JOIN student ON student.number = score.student_number;)";
+    statement stmt = create_statement(db.get(), sql_query);
+
+    // Execute sql statement, and while there are rows returned, print ID
+    bool found = false;
+    int ret_code = 0;
+    while((ret_code = sqlite3_step(stmt.get())) == SQLITE_ROW) {
+        cout << "Student Number: " << sqlite3_column_int(stmt.get(), 0);
+        cout << "Student Name: " << sqlite3_column_int(stmt.get(), 0);
+        found = true;
+    }
+    if(ret_code != SQLITE_DONE) {
+        //this error handling could be done better, but it works
+        printf("ERROR: while performing sql: %s\n", sqlite3_errmsg(db.get()));
+        printf("ret_code = %d\n", ret_code);
+    }
+
+    printf("entry %s\n", found ? "found" : "not found");
+
+    //release resources
+    sqlite3_finalize(stmt.get());
+    sqlite3_close(db.get());
 
 
 
@@ -33,12 +60,11 @@ int main() {
     cin>>option;
     system("clear");
 
-    // If View is selected from the Main Menu
     if(option == 1) {
         
         goto mainMenu;
     }
-    // If Edit is selected from the Main Menu
+    // Edit Menu
     else if(option == 2) {
 
         editMenu:
@@ -161,15 +187,14 @@ constexpr const char* default_schema() {
         FOREIGN KEY(lecturer) REFERENCES lecturer(number)
     );
 
-    CREATE UNIQUE INDEX IF NOT EXISTS name ON subject_list(name);
-
     CREATE TABLE IF NOT EXISTS score (
         student_number INTEGER NOT NULL,
         semester INTEGER NOT NULL,
-        subject TEXT NOT NULL,
+        subject_id INTEGER NOT NULL,
         score INTEGER NOT NULL,
-        grade INTEGER NOT NULL,
-        FOREIGN KEY(student_number) REFERENCES student(student_number)
+        grade TEXT NOT NULL,
+	FOREIGN KEY(student_number) REFERENCES student(student_number)
+	FOREIGN KEY(subject_id) REFERENCES subject_list(id)
     );
     )";
 }
