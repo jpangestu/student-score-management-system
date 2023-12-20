@@ -1,6 +1,9 @@
 #include <iostream>
 #include <cstring>
+#include <string>
 #include <memory>
+#include <termios.h>
+#include <unistd.h>
 #include "sqlite3/sqlite3.h"
 
 using namespace std;
@@ -8,16 +11,25 @@ using namespace std;
 using database = std::unique_ptr<sqlite3, decltype(&sqlite3_close)>;
 using statement = std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)>;
 
+// Store login info
+struct loginInfo {
+    string status;
+    string name;
+    long number;
+};
+
 // #Function prototype (forward declaration)#
 database open_database(const char* name);
 void execute(sqlite3* db, const char* sql_query);
 statement create_statement(sqlite3* db, const string &sql_query);
+void parameter(sqlite3_stmt* stmt, int index, int value);
 void parameter(sqlite3_stmt* stmt, int index, const std::string& value);
 constexpr const char* default_schema();
 
-void spaceGenerate(int numOfChar);
-void showLoginMenu(sqlite3* db);
-
+void generateSpace(string variable, string same_line_output);
+void clearScreen();
+int getAst();
+loginInfo showLoginMenu(sqlite3* db);
 
 class student{
 public:
@@ -85,6 +97,8 @@ private:
 };
 
 int main() {
+    clearScreen();
+
     // Create new (link existing) database.
     database db = open_database("main.db");
     // // Create (if not created yet) default sqlite tables (defining .schema)
@@ -206,53 +220,148 @@ int main() {
 
 
 
-// ##List of All Function##
+        // ##List of All Function##
 
-void spaceGenerate(int numOfChar) {
-    for (int i = 0; i < numOfChar; i++) {
+// Generate space for neat interface.
+void generateSpace(string variable, string same_line_output) {
+    // 80 is the total number of character per line in the interface
+    int length = 80 - (strlen(variable.c_str()) + strlen(same_line_output.c_str()));
+    for (int i = 1; i < length; i++) {
         cout << " ";
     }
 }
 
-// #Front-End
-
-void showLoginMenu(sqlite3* db) {
-    int option;
-    string username, password;
-
-    loginMenu:
-    cout<<"+------------------------------------------------------------------------------+"<<endl;
-    cout<<"| Choose one option below by typing the corresponding number (0,1,2,.. ):      |"<<endl;
-    cout<<"| 1. Login                                                                     |"<<endl;
-    cout<<"| 2. Create Account                                                            |"<<endl;
-    cout<<"|                                                                              |"<<endl;
-    cout<<"|                                                                  |  0. Exit  |"<<endl;
-    cout<<"+------------------------------------------------------------------+-----------+"<<endl;
-    cin>>option;
-
+// Clear (terminal/cmd) Screen
+void clearScreen() {
     /* If the app is running on Windows, use system("cls") (to clear screen).
     Else, the app must be running on Linux. Hence, use system("clear") (to clear screen) */
     try{
-        system("cls");
+        if(system("cls")) {
         throw(invalid_argument("App not running on Windows"));
-        
+        }
     }
     catch(invalid_argument){
-        system("clear");
+    system("clear");
     }
+}
 
-    if(option == 1) {
+// Replace user input to asterisk (*) whilte typing password
+// From > https://dev.to/namantam1/how-to-take-hidden-password-from-terminal-in-cc-3ddd
+int getAst() {
+    int ast;
+    // struct to hold the terminal settings
+    struct termios old_settings, new_settings;
+    // take default setting in old_settings
+    tcgetattr(STDIN_FILENO, &old_settings);
+    // make of copy of it (Read my previous blog to know 
+    // more about how to copy struct)
+    new_settings = old_settings;
+    // change the settings for by disabling ECHO mode
+    // read man page of termios.h for more settings info
+    new_settings.c_lflag &= ~(ICANON | ECHO);
+    // apply these new settings
+    tcsetattr(STDIN_FILENO, TCSANOW, &new_settings);
+    // now take the input in this mode
+    ast = getchar();
+    // reset back to default settings
+    tcsetattr(STDIN_FILENO, TCSANOW, &old_settings);
+    return ast;
+}
+
+
+    // #Front-End#
+
+loginInfo showLoginMenu(sqlite3* db) {
+    int login_failed = 0;
+    string option;
+    loginInfo login_info;
+    loginMenu:
+    cout << endl << endl;
+    loginMenuErrMsg:
+    cout << "+------------------------------------------------------------------------------+" << endl;
+    cout << "| Choose one option below by typing the number (0,1,2,.. )                     |" << endl;
+    cout << "| 1. Login                                                                     |" << endl;
+    cout << "| 2. Create Account                                                            |" << endl;
+    cout << "|                                                                              |" << endl;
+    cout << "|                                                                  |  0. Exit  |" << endl;
+    cout << "+------------------------------------------------------------------+-----------+" << endl;
+    cout << "| Input: ";
+    cin >> option;
+
+    clearScreen();
+
+    if(option == "1") {
         int number = 0;
-        string session = "";
+        string username, password;
         bool username_exist = false;
 
-        cout << "+------------------------------------------------------------------------------+"<<endl;
         loginOption:
-        cout << "| Insert Username: ";
-        cin >> username;
+        cout << endl << endl;
+        loginOptionErrMsg:
+        cout << "+------------------------------------------------------------------------------+" << endl;
+        cout << "| Insert Username: "; cin >> username;
 
+        clearScreen();
+        cout << endl << endl;
+        cout << "+------------------------------------------------------------------------------+"<<endl;
+        cout << "| Insert Username: " << username, generateSpace(username, "| Insert Username: "), cout << "|\n";
         cout << "| Insert Password: ";
-        cin >> password;
+
+        // Hide user input while typing password
+        int asciiChar, i = 0;
+        char get_password[100];
+        cin.ignore();
+        while ((asciiChar = getAst()) != '\n') {
+            if (asciiChar == 127 || asciiChar == 8) { // handle backspace
+                if (i != 0) {
+                    i--;
+                    printf("\b \b");
+                }
+            } else {
+                get_password[i++] = asciiChar;
+                // echo the '*' to get feel of taking password 
+                cout << "*";
+            }
+            get_password[i] = '\0';
+            password = get_password;
+        }
+
+        // Too many failed attempt to login
+        if (login_failed >= 2) {
+            clearScreen();
+            cout << "+------------------------------------------------------------------------------+" << endl;
+            cout << "| > Too many failed login attempt                                              |" << endl;
+            loginFailed:
+            cout << "+------------------------------------------------------------------------------+" << endl;
+            cout << "| Do you want to try to login again? (y/n)                                     |" << endl;
+            cout << "|                                                                              |" << endl;
+            cout << "|                                                      |  9. Back  |  0. Exit  |" << endl;
+            cout << "+------------------------------------------------------+-----------+-----------+" << endl;
+            cout << "| Input: ";
+            cin >> option;
+            
+            login_failed = 0;
+
+            if (option == "y" or option == "Y") {
+                clearScreen();
+                goto loginOption;
+            } else if (option == "n" or option == "N") {
+                clearScreen();
+                goto loginMenu;
+            } else if (option == "9") {
+                clearScreen();
+                goto loginMenu;
+            } else if(option == "0") {
+                clearScreen();
+                exit(EXIT_SUCCESS);
+            } else {
+                clearScreen();
+                cin.ignore();
+                cout << "+------------------------------------------------------------------------------+" << endl;
+                cout << "| > Invalid option. Please enter the available option!                         |" << endl;
+                goto loginFailed;
+            }
+        }
 
         // Check if username is exist in the database
         string query = R"(
@@ -260,7 +369,7 @@ void showLoginMenu(sqlite3* db) {
         statement stmt = create_statement(db, query);
         parameter(stmt.get(), 1, username);
         if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
-            session = "student";
+            login_info.status = "student";
             username_exist = true;
             number = sqlite3_column_int(stmt.get(), 0);
         }
@@ -269,104 +378,244 @@ void showLoginMenu(sqlite3* db) {
         stmt = create_statement(db, query);
         parameter(stmt.get(), 1, username);
         if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
-            session = "lecturer";
+            login_info.status = "lecturer";
             username_exist = true;
             number = sqlite3_column_int(stmt.get(), 0);
         }
 
         if (username_exist != true) {
-            try{
-                if(system("cls")) {
-                throw(invalid_argument("App not running on Windows"));
-                }
-            }
-            catch(invalid_argument){
-            system("clear");
-            }
+            login_failed += 1;
+            clearScreen();
             cout << "+------------------------------------------------------------------------------+"<<endl;
-            cout << "| > Invalid username or password!                                              |" << endl;
-            cout << "+------------------------------------------------------------------------------+"<<endl;
-            goto loginOption;
+            cout << "| > Invalid username or password                                               |" << endl;
+            goto loginOptionErrMsg;
         }
         
         // Check if the password match the username in the database
-        if (session == "student") {
+        if (login_info.status == "student") {
             query = R"(
-            SELECT number FROM student WHERE username = ? AND password = ?)";
+            SELECT number, name FROM student WHERE username = ? AND password = ?)";
             stmt = create_statement(db, query);
             parameter(stmt.get(), 1, username);
             parameter(stmt.get(), 2, password);
-            if (sqlite3_step(stmt.get()) != SQLITE_ROW) {
-                try{
-                    if(system("cls")) {
-                    throw(invalid_argument("App not running on Windows"));
-                    }
-                }
-                catch(invalid_argument){
-                system("clear");
-                }
-                cout << "> Invalid username or password!" << endl;
-                goto loginOption;
+            if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+                login_info.number = sqlite3_column_int(stmt.get(), 0);
+                login_info.name = string(reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 1)));
+            } else {
+                login_failed += 1;
+                clearScreen();
+                cout << "+------------------------------------------------------------------------------+"<<endl;
+                cout << "| > Invalid username or password                                               |" << endl;
+                goto loginOptionErrMsg;
             }
         }
-        else if (session == "lecturer") {
+        else if (login_info.status == "lecturer") {
             query = R"(
-            SELECT number FROM lecturer WHERE username = ? AND password = ?)";
+            SELECT number, name FROM lecturer WHERE username = ? AND password = ?)";
             stmt = create_statement(db, query);
             parameter(stmt.get(), 1, username);
             parameter(stmt.get(), 2, password);
-            if (sqlite3_step(stmt.get()) != SQLITE_ROW) {
-                try{
-                    if(system("cls")) {
-                    throw(invalid_argument("App not running on Windows"));
-                    }
-                }
-                catch(invalid_argument){
-                system("clear");
-                }
-                cout << "> Invalid username or password!" << endl;
-                goto loginOption;
+            if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+                login_info.number = sqlite3_column_int(stmt.get(), 0);
+                login_info.name = string(reinterpret_cast<const char*>(sqlite3_column_text(stmt.get(), 1)));
+            } else {
+                login_failed += 1;
+                clearScreen();
+                cout << "+------------------------------------------------------------------------------+"<<endl;
+                cout << "| > Invalid username or password                                               |" << endl;
+                goto loginOptionErrMsg;
             }
         } else {
-            try{
-                if(system("cls")) {
-                throw(invalid_argument("App not running on Windows"));
-                }
-            }
-            catch(invalid_argument){
-            system("clear");
-            }
-            cout << "> Invalid username or password!" << endl;
-            goto loginOption;
+            login_failed += 1;
+            clearScreen();
+            cout << "+------------------------------------------------------------------------------+"<<endl;
+            cout << "| > Invalid username or password                                               |" << endl;
+            goto loginOptionErrMsg;
         }
-        
 
+        // Return login info
+        if (login_info.status == "student" or login_info.status == "lecturer" and !login_info.name.empty() and login_info.number != 0) {
+            return login_info;
+        }
     }
-    else if(option == 2) {
+    else if(option == "2") {
         string name;
-        cout << "Insert Your Name: ";
-        cin >> name;
+        clearScreen();
+        registerOption:
+        cout << endl << endl;
+        registerOptionErrMsg:
+        cout << "+------------------------------------------------------------------------------+" << endl;
+        cout << "|                      Are you a Student or a Lecturer?                        |" << endl;
+        cout << "+------------------------------------------------------------------------------+" << endl;
+        cout << "| Choose one option below by typing the number (0,1,2,.. )                     |" << endl;
+        cout << "| 1. Student                                                                   |" << endl;
+        cout << "| 2. Lecturer                                                                  |" << endl;
+        cout << "|                                                                              |" << endl;
+        cout << "|                                                      |  9. Back  |  0. Exit  |" << endl;
+        cout << "+------------------------------------------------------+-----------+-----------+" << endl;
+        cout << "| Input: ";
+        cin >> option;
+
+        if (option == "1") {
+            clearScreen();
+            string full_name, number, username, password;
+            enterFullName:
+            cout << endl << endl;
+            cout << "+------------------------------------------------------------------------------+" << endl;
+            cout << "| Please enter your Full Name!                                                 |" << endl;
+            cout << "| Full Name: "; cin.ignore(); getline(cin, full_name);
+
+            clearScreen();
+            cout << endl << endl;
+            fullNameConfirmErrMsg:
+            cout << "+------------------------------------------------------------------------------+"<<endl;
+            cout << "|                                                                              |" << endl;
+            cout << "| Full Name: " << full_name, generateSpace(full_name, "| Full Name: "), cout << "|\n";
+            cout << "|                                                                              |" << endl;
+            cout << "| Is that the correct Name? (y/n)                                              |" << endl;
+            cout << "|                                                                              |" << endl;
+            cout << "|                                                      |  9. Back  |  0. Exit  |" << endl;
+            cout << "+------------------------------------------------------+-----------+-----------+" << endl;
+            cout << "| Input: ";
+            cin >> option;
+
+            if (option == "y" or option == "Y") {
+                clearScreen();
+                enterNumber:
+                cout << endl << endl;
+                enterNumberErrMsg:
+                cout << "+------------------------------------------------------------------------------+"<<endl;
+                cout << "| / Please enter your Student Number!                                          |" << endl;
+                cout << "| Full Name: " << full_name, generateSpace(full_name, "| Full Name: "), cout << "|\n";
+                cout << "| Student Number: ";
+                cin.ignore();
+                getline(cin, number);
+                // Make sure user input is only number
+                if ((number.find_first_of("0123456789") == string::npos) == true) {
+                    clearScreen();
+                    cout << "+------------------------------------------------------------------------------+"<<endl;
+                    cout << "| > Student Number must be all numerical                                       |" << endl;
+                    cout << "| What you enter: " << option << endl;
+                    goto enterNumberErrMsg;
+                }
+
+                clearScreen();
+                cout << endl << endl;
+                numberConfirmErrMsg:
+                cout << "+------------------------------------------------------------------------------+"<<endl;
+                cout << "|                                                                              |" << endl;
+                cout << "| Full Name: " << full_name, generateSpace(full_name, "| Full Name: "), cout << "|\n";
+                cout << "| Student Number: " << number, generateSpace(number, "| Student Number: "), cout << "|\n";
+                cout << "|                                                                              |" << endl;
+                cout << "| Is that the correct Student Number? (y/n)                                    |" << endl;
+                cout << "|                                                                              |" << endl;
+                cout << "|                                                      |  9. Back  |  0. Exit  |" << endl;
+                cout << "+------------------------------------------------------+-----------+-----------+" << endl;
+                cout << "| Input: ";
+                cin >> option;
+
+                if (option == "y" or option == "Y") {
+                    // Check student number in database
+                    string query = "SELECT * FROM student WHERE number = ?";
+                    statement stmt = create_statement(db, query);
+                    parameter(stmt.get(), 1, number);
+
+                    if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+                        clearScreen();
+                        cout << "+------------------------------------------------------------------------------+"<<endl;
+                        cout << "| > Student Number already exist. Please enter a new one!                      |" << endl;
+                        goto enterNumberErrMsg;
+                    }
+
+                    clearScreen();
+                    enterUsername:
+                    cout << endl << endl;
+                    cout << "+------------------------------------------------------------------------------+"<<endl;
+                    cout << "| / Please create a Username!                                                  |" << endl;
+                    cout << "| Full Name: " << full_name, generateSpace(full_name, "| Full Name: "), cout << "|\n";
+                    cout << "| Student Number: " << number, generateSpace(number, "| Student Number: "), cout << "|\n";
+                    cout << "| Username: ";
+                    cin >> username;
+
+                    clearScreen();
+                    cout << endl << endl;
+                    usernameConfirmErrMsg:
+                    cout << "+------------------------------------------------------------------------------+"<<endl;
+                    cout << "|                                                                              |" << endl;
+                    cout << "| Full Name: " << full_name, generateSpace(full_name, "| Full Name: "), cout << "|\n";
+                    cout << "| Student Number: " << number, generateSpace(number, "| Student Number: "), cout << "|\n";
+                    cout << "| Username: " << username, generateSpace(username, "| Username: "), cout << "|\n";
+                    cout << "|                                                                              |" << endl;
+                    cout << "| Do you want to continue with this Username? (y/n)                            |" << endl;
+                    cout << "|                                                                              |" << endl;
+                    cout << "|                                                      |  9. Back  |  0. Exit  |" << endl;
+                    cout << "+------------------------------------------------------+-----------+-----------+" << endl;
+                    cout << "| Input: ";
+                    cin >> option;
+
+                } else if (option == "n" or option == "N") {
+                    clearScreen();
+                    goto enterNumber;
+                } else if (option == "9") {
+                    clearScreen();
+                    goto enterFullName;
+                } else if (option == "0") {
+                    clearScreen();
+                    exit(EXIT_SUCCESS);
+                } else {
+                    clearScreen();
+                    cout << "+------------------------------------------------------------------------------+" << endl;
+                    cout << "| > Invalid option. Please enter the available option!                         |" << endl;
+                    cin.ignore();
+                    goto numberConfirmErrMsg;
+                }
+                
+
+            } else if (option == "n" or option == "N") {
+                clearScreen();
+                goto enterFullName;
+            } else if (option == "9") {
+                clearScreen();
+                goto registerOption;
+            } else if (option == "0") {
+                clearScreen();
+                exit(EXIT_SUCCESS);
+            } else {
+                clearScreen();
+                cout << "+------------------------------------------------------------------------------+" << endl;
+                cout << "| > Invalid option. Please enter the available option!                         |" << endl;
+                cin.ignore();
+                goto fullNameConfirmErrMsg;
+            }
+
+        } else if (option == "2") {
+            
+        } else if (option == "9") {
+            clearScreen();
+            goto loginMenu;
+        } else if (option == "0") {
+            clearScreen();
+            exit(EXIT_SUCCESS);
+        } else {
+            clearScreen();
+            cin.ignore();
+            cout << "+------------------------------------------------------------------------------+" << endl;
+            cout << "| > Invalid option! Please enter the available option.                         |" << endl;
+            goto registerOptionErrMsg;
+        }
     }
-    else if(option == 0) {
-        
-        cin.ignore();
+    else if(option == "0") {
+        clearScreen();
+        exit(EXIT_SUCCESS);
     }
     else {
+        cout << "+------------------------------------------------------------------------------+" << endl;
+        cout << "| > Invalid option. Please enter the available option!                         |" << endl;
         cin.ignore();
-        cout<<"Please enter the corresponding option!\nType enter to go back to the menu"<<endl;
-        cin.get();
-        
-        try{
-            if(system("cls")) {
-                throw(invalid_argument("App not running on Windows"));
-            }
-        }
-        catch(invalid_argument){
-            system("clear");
-        }
-
-        goto loginMenu;
+        goto loginMenuErrMsg;
     }
+
+    return login_info;
 }
 
 
@@ -409,11 +658,19 @@ statement create_statement(sqlite3* db, const string &sql_query) {
     return statement(stmt, sqlite3_finalize);
 }
 
+// Bind int parameter
+void parameter(sqlite3_stmt* stmt, int index, int value) {
+    if (sqlite3_bind_int(stmt, index, value) != SQLITE_OK) {
+        throw(invalid_argument("Error, sqlite3_bind can't accept your value"));
+    }
+}
+
+// Bind string parameter
 void parameter(sqlite3_stmt* stmt, int index, const std::string& value) {
     if (sqlite3_bind_text(stmt, index, value.c_str(), value.size(), SQLITE_TRANSIENT) != SQLITE_OK) {
         throw(invalid_argument("Error, sqlite3_bind can't accept your value"));
     }
-};
+}
 
 // Query to create default tables (create sql schema).
 constexpr const char* default_schema() {
