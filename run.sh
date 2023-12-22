@@ -1,3 +1,3 @@
 #!/bin/sh
 
-./studentScoreSystem
+./studentScoreSystem.exe
