@@ -136,10 +136,10 @@ loginInfo showLoginMenu(sqlite3* db) {
             
             login_failed = 0;
 
-            if (option == "y" or option == "Y") {
+            if (option == "y" || option == "Y") {
                 clearScreen();
                 goto loginOption;
-            } else if (option == "n" or option == "N") {
+            } else if (option == "n" || option == "N") {
                 clearScreen();
                 goto loginMenu;
             } else if (option == "9") {
@@ -209,15 +209,29 @@ loginInfo showLoginMenu(sqlite3* db) {
         cout << "| Input: ";
         cin >> option;
 
-        // Incomplete
+        // Get status
         if (option == "1") {
+            clearScreen();
             status = "student";
         } else if (option == "2") {
+            clearScreen();
             status = "lecturer";
+        } else if (option == "9") {
+            clearScreen();
+            goto loginMenu;
+        } else if (option == "0") {
+            clearScreen();
+            exit(EXIT_SUCCESS);
+        } else {
+            clearScreen();
+            cout << "+------------------------------------------------------------------------------+" << endl;
+            cout << "| > Invalid option. Please enter the available option!                         |" << endl;
+            cin.ignore();
+            goto registerOptionErrMsg;
         }
 
-
-
+        enterFullName:
+        cout << endl << endl;
         cout << "+------------------------------------------------------------------------------+" << endl;
         cout << "| Please enter your Full Name!                                                 |" << endl;
         cout << "| Full Name: "; cin.ignore(); getline(cin, full_name);
@@ -236,7 +250,7 @@ loginInfo showLoginMenu(sqlite3* db) {
         cout << "| Input: ";
         cin >> option;
 
-        if (option == "y" or option == "Y") {
+        if (option == "y" || option == "Y") {
             clearScreen();
             enterNumber:
             cout << endl << endl;
@@ -272,7 +286,7 @@ loginInfo showLoginMenu(sqlite3* db) {
             cout << "| Input: ";
             cin >> option;
 
-            if (option == "y" or option == "Y") {
+            if (option == "y" || option == "Y") {
                 // Check student number in database
                 string query = "SELECT number FROM person WHERE number = ?";
                 statement stmt = create_statement(db, query);
@@ -311,7 +325,7 @@ loginInfo showLoginMenu(sqlite3* db) {
                 cout << "| Input: ";
                 cin >> option;
 
-                if (option == "y" or option == "Y") {
+                if (option == "y" || option == "Y") {
                     //input password
                     clearScreen();
                     enterPassword:
@@ -342,13 +356,13 @@ loginInfo showLoginMenu(sqlite3* db) {
                     cout << "| Input: ";
                     cin >> option;
 
-                    if (option == "y" or option == "Y") {
+                    if (option == "y" || option == "Y") {
                         clearScreen();
                         cout << "+------------------------------------------------------------------------------+" << endl;
                         cout << "| > Accout successfully created                                                |" << endl;
                         cin.ignore();
                         goto loginMenuErrMsg;
-                    } else if (option == "n" or option == "N") {
+                    } else if (option == "n" || option == "N") {
                         clearScreen();
                         goto registerOption;
                     } else if (option == "9") {
@@ -365,12 +379,13 @@ loginInfo showLoginMenu(sqlite3* db) {
                         goto passwordConfirmErrMsg;
                     }
                 
-                } else if (option == "n" or option == "N") {
+                // If-else from enter username
+                } else if (option == "n" || option == "N") {
                     clearScreen();
-                    goto enterNumber;
+                    goto enterUsername;
                 } else if (option == "9") {
                     clearScreen();
-                    goto registerOption;
+                    goto enterNumber;
                 } else if (option == "0") {
                     clearScreen();
                     exit(EXIT_SUCCESS);
@@ -379,16 +394,16 @@ loginInfo showLoginMenu(sqlite3* db) {
                     cout << "+------------------------------------------------------------------------------+" << endl;
                     cout << "| > Invalid option. Please enter the available option!                         |" << endl;
                     cin.ignore();
-                    goto numberConfirmErrMsg;
+                    goto usernameConfirmErrMsg;
                 }
                 
-
-            } else if (option == "n" or option == "N") {
+            // If-else from enter (student) number
+            } else if (option == "n" || option == "N") {
                 clearScreen();
                 goto enterNumber;
             } else if (option == "9") {
                 clearScreen();
-                goto registerOption;
+                goto enterFullName;
             } else if (option == "0") {
                 clearScreen();
                 exit(EXIT_SUCCESS);
@@ -400,10 +415,10 @@ loginInfo showLoginMenu(sqlite3* db) {
                 goto numberConfirmErrMsg;
             }
             
-
-        } else if (option == "n" or option == "N") {
+        // If-else from enter enter status & full name
+        } else if (option == "n" || option == "N") {
             clearScreen();
-            goto registerOption;
+            goto enterFullName;
         } else if (option == "9") {
             clearScreen();
             goto registerOption;
@@ -418,11 +433,7 @@ loginInfo showLoginMenu(sqlite3* db) {
             goto fullNameConfirmErrMsg;
         }
 
-    } else if (option == "2") {
-        
-    } else if (option == "9") {
-        clearScreen();
-        goto loginMenu;
+    // If-else from login menu   
     } else if (option == "0") {
         clearScreen();
         exit(EXIT_SUCCESS);
