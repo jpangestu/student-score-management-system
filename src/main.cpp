@@ -31,11 +31,11 @@ int main() {
 
 
     // ##Front-End##
-    loginInfo logininfo = showLoginMenu(db.get());
+    loginInfo loginInfo = showLoginMenu(db.get());
 
-    cout << logininfo.status << endl;
-    cout << logininfo.name << endl;
-    cout << logininfo.number << endl;
+    cout << loginInfo.status << endl;
+    cout << loginInfo.name << endl;
+    cout << loginInfo.number << endl;
 
 }
 
@@ -48,12 +48,12 @@ int main() {
 
 
 
-        // ##List of All Function##
+        // ##List of All Functions##
 
 // Generate space for neat interface.
 void generateSpace(string variable, string same_line_output) {
     // 80 is the total number of character per line in the interface
-    int length = 80 - (strlen(variable.c_str()) + strlen(same_line_output.c_str()));
+    size_t length = 80 - (strlen(variable.c_str()) + strlen(same_line_output.c_str()));
     for (int i = 1; i < length; i++) {
         cout << " ";
     }
@@ -234,7 +234,11 @@ loginInfo showLoginMenu(sqlite3* db) {
         cout << endl << endl;
         cout << "+------------------------------------------------------------------------------+" << endl;
         cout << "| Please enter your Full Name!                                                 |" << endl;
-        cout << "| Full Name: "; cin.ignore(); getline(cin, full_name);
+        cout << "| Full Name: ";
+        cin.ignore();
+        getline(cin, full_name);
+
+        // TODO: Capitalize first alphabet in each words
 
         clearScreen();
         cout << endl << endl;
@@ -307,7 +311,10 @@ loginInfo showLoginMenu(sqlite3* db) {
                 cout << "| Full Name: " << full_name, generateSpace(full_name, "| Full Name: "), cout << "|\n";
                 cout << "| Student Number: " << number, generateSpace(number, "| Student Number: "), cout << "|\n";
                 cout << "| Username: ";
-                cin >> username;
+                cin.ignore();
+                getline(cin, username);
+
+                // TODO: Make sure username has no space
 
                 clearScreen();
                 cout << endl << endl;
@@ -447,10 +454,6 @@ loginInfo showLoginMenu(sqlite3* db) {
 
     return login_info;
 }
-
-
-
-
 
 // Query to create default sql tables (schema).
 constexpr const char* default_schema() {
