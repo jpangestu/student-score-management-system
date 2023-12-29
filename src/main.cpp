@@ -1,5 +1,4 @@
 #include <iostream>
-#include <cstring>
 #include <string>
 #include <memory>
 #include <sstream>
@@ -14,13 +13,15 @@ using namespace std;
 struct loginInfo {
     string status;
     string name;
-    long number;
+    long long number;
 };
 
 // #Function prototype (forward declaration)#
 constexpr const char* default_schema();
-void generateSpace(string variable, string same_line_output);
-void printAsterisk(int length);
+string printUI(string message, string variable);
+string printAsterisk(int length);
+bool oneCharExist(string input);
+string toDefaultTextStyle(string input);
 void clearScreen();
 loginInfo showLoginMenu(sqlite3* db);
 
@@ -53,16 +54,54 @@ int main() {
 
         // ##List of All Functions##
 
-// Generate space for neat interface.
-void generateSpace(string variable, string same_line_output) {
+// Generate interface with dynamic spaces.
+string printUI(string message, string variable) {
+    // String concatenation
+    string s = message + variable;
     // 80 is the total number of character per line in the interface
-    size_t length = 80 - (strlen(variable.c_str()) + strlen(same_line_output.c_str()));
-    for (int i = 1; i < length; i++) {
-        cout << " ";
+    size_t length = 80 - (variable.length() + message.length());
+    for (size_t i = 1; i < length; i++) {
+        s += " ";
+        if (i == length - 1) {
+            s += "|\n";
+        }
     }
+    return s;
 }
 
-// Replace user input with *
+string printUI(string option) {
+    string s;
+    transform(s.begin(), s.end(), s.begin(), ::tolower);
+    if (option == "strip") {
+        s = "+------------------------------------------------------------------------------+\n";
+    } else if (option == "blank") {
+        s = "|                                                                              |\n";
+    } else if (option == "bottom menu") {
+        s = "|                                                      |  9. Back  |  0. Exit  |\n";
+        s += "+------------------------------------------------------+-----------+-----------+\n";
+        s += "| Input: ";
+    }
+    else {
+        s = "UI Function Error! Option is not incorrect";
+    }
+    return s;
+}
+
+string printUIErr(string error_message) {
+    string s= "+------------------------------------------------------------------------------+\n| > ";
+    s += error_message;
+    // 80 is the total number of character per line in the interface
+    size_t length = 80 - (error_message.length() + 4); // +4 is for counting the "| > "
+    for (size_t i = 1; i < length; i++) {
+        s += " ";
+        if (i == length - 1) {
+            s += "|\n";
+        }
+    }  
+    return s;
+}
+
+// Replace user input (password) with *
 // From -> https://cplusplus.com/forum/general/3570/
 string getpassword( const string& prompt) {
     string result;
@@ -98,10 +137,51 @@ string getpassword( const string& prompt) {
 }
 
 // Print asterisk as many as a string variable length
-void printAsterisk(size_t length) {
+string printAsterisk(size_t length) {
+    string s;
     for (int i = 0; i < length; i++) {
-        cout << "*";
+        s += "*";
     }
+    return s;
+}
+
+// Make sure there is at least 1 character
+bool oneCharExist(string input) {
+    bool flag = false;
+    for (int i = 0; i < input.length(); i++) {
+        if (input[i] >= 'a' && input[i] <= 'z' || input[i] >= 'A' && input[i] <= 'Z' ) {
+            flag = true;
+        }
+    }
+    return flag;
+}
+
+// Remove unnecessary space and capitalize first character of each word
+string toDefaultTextStyle(string input) {
+    /* regex_replace -> replace multiple spaces (2nd argument) in input (1st argument)
+    with 1 space (3rd argument) */
+    string s = regex_replace(input, regex("\\s+"), " "); // \\s+ means more than 1 space (1 space is allowed)
+    
+    if (s[0] == ' ') {
+        s.erase(0, 1);
+    }
+
+    // Capitalize the first letter of each word and set the rest to lowercase
+        for (int x = 0; x < s.length(); x++)
+        {
+            if (x == 0)
+            {
+                s[x] = toupper(s[x]);
+            }
+            else if (s[x - 1] == ' ')
+            {
+                s[x] = toupper(s[x]);
+            }
+            else {
+                s[x] = tolower(s[x]);
+            }
+        }
+    return s;
 }
 
 // Clear (terminal/cmd) Screen
@@ -145,15 +225,15 @@ loginInfo showLoginMenu(sqlite3* db) {
         cout << endl << endl;
         loginOptionErrMsg:
         cout << "+------------------------------------------------------------------------------+" << endl;
-        cout << "| Insert Username: "; cin >> username;
+        cout << "| Insert Username: ";
+        getline(cin, username);
 
         clearScreen();
         cout << endl << endl;
         cout << "+------------------------------------------------------------------------------+"<<endl;
-        cout << "| Insert Username: " << username, generateSpace(username, "| Insert Username: "), cout << "|\n";
+        cout << printUI("| Insert Username: ", username);
         cout << "| Insert Password: ";
         password = getpassword("");
-        
 
         // Too many failed attempt to login
         if (login_failed >= 2) {
@@ -273,35 +353,27 @@ loginInfo showLoginMenu(sqlite3* db) {
         cout << "| Full Name: ";
         getline(cin, full_name);
 
-        // Full_name must be all letters
+        // Full_name must be all letters and at least 1 character
         if(regex_match(full_name, regex("([a-zA-Z .]*)")) == false) { 
-                clearScreen();
-                cout << "+------------------------------------------------------------------------------+"<<endl;
-                cout << "| > Full Name must be all letters                                              |" << endl;
-                goto enterFullNameErrMsg;
+            clearScreen();
+            cout << "+------------------------------------------------------------------------------+"<<endl;
+            cout << "| > Full Name must be all letters                                              |" << endl;
+            goto enterFullNameErrMsg;
+        } else if (oneCharExist(full_name) == false) {
+            clearScreen();
+            cout << "+------------------------------------------------------------------------------+"<<endl;
+            cout << "| > Full Name cannot be empty. Please insert at least 1 character              |" << endl;
+            goto enterFullNameErrMsg;
         }
-        // Capitalize the first letter of each word and the rest is lowercase
-        for (int x = 0; x < full_name.length(); x++)
-        {
-            if (x == 0)
-            {
-                full_name[x] = toupper(full_name[x]);
-            }
-            else if (full_name[x - 1] == ' ')
-            {
-                full_name[x] = toupper(full_name[x]);
-            }
-            else {
-                full_name[x] = tolower(full_name[x]);
-            }
-        }
+
+        full_name = toDefaultTextStyle(full_name);
 
         clearScreen();
         cout << endl << endl;
         fullNameConfirmErrMsg:
         cout << "+------------------------------------------------------------------------------+"<<endl;
         cout << "|                                                                              |" << endl;
-        cout << "| Full Name: " << full_name, generateSpace(full_name, "| Full Name: "), cout << "|\n";
+        cout << printUI("| Full Name: ", full_name);
         cout << "|                                                                              |" << endl;
         cout << "| Is that the correct Name? (Y/n)                                              |" << endl;
         cout << "|                                                                              |" << endl;
@@ -317,7 +389,7 @@ loginInfo showLoginMenu(sqlite3* db) {
             enterNumberErrMsg:
             cout << "+------------------------------------------------------------------------------+"<<endl;
             cout << "| / Please enter your Student Number!                                          |" << endl;
-            cout << "| Full Name: " << full_name, generateSpace(full_name, "| Full Name: "), cout << "|\n";
+            cout << printUI("| Full Name: ", full_name);
             cout << "| Student Number: ";
             getline(cin, str_number);
 
@@ -354,8 +426,8 @@ loginInfo showLoginMenu(sqlite3* db) {
             numberConfirmErrMsg:
             cout << "+------------------------------------------------------------------------------+"<<endl;
             cout << "|                                                                              |" << endl;
-            cout << "| Full Name: " << full_name, generateSpace(full_name, "| Full Name: "), cout << "|\n";
-            cout << "| Student Number: " << number, generateSpace(str_number, "| Student Number: "), cout << "|\n";
+            cout << printUI("| Full Name: ", full_name);
+            cout << printUI("| Student Number: ", str_number);
             cout << "|                                                                              |" << endl;
             cout << "| Is that the correct Student Number? (Y/n)                                    |" << endl;
             cout << "|                                                                              |" << endl;
@@ -371,8 +443,8 @@ loginInfo showLoginMenu(sqlite3* db) {
                 enterUsernameErrMsg:
                 cout << "+------------------------------------------------------------------------------+"<<endl;
                 cout << "| / Please create a Username!                                                  |" << endl;
-                cout << "| Full Name: " << full_name, generateSpace(full_name, "| Full Name: "), cout << "|\n";
-                cout << "| Student Number: " << number, generateSpace(str_number, "| Student Number: "), cout << "|\n";
+                cout << printUI("| Full Name: ", full_name);
+                cout << printUI("| Student Number: ", str_number);
                 cout << "| Username: ";
                 getline(cin, username);
 
@@ -411,9 +483,9 @@ loginInfo showLoginMenu(sqlite3* db) {
                 usernameConfirmErrMsg:
                 cout << "+------------------------------------------------------------------------------+"<<endl;
                 cout << "|                                                                              |" << endl;
-                cout << "| Full Name: " << full_name, generateSpace(full_name, "| Full Name: "), cout << "|\n";
-                cout << "| Student Number: " << number, generateSpace(str_number, "| Student Number: "), cout << "|\n";
-                cout << "| Username: " << username, generateSpace(username, "| Username: "), cout << "|\n";
+                cout << printUI("| Full Name: ", full_name);
+                cout << printUI("| Student Number: ", str_number);
+                cout << printUI("| Username: ", username);
                 cout << "|                                                                              |" << endl;
                 cout << "| Do you want to continue with this Username? (Y/n)                            |" << endl;
                 cout << "|                                                                              |" << endl;
@@ -428,9 +500,9 @@ loginInfo showLoginMenu(sqlite3* db) {
                     cout << endl << endl;
                     cout << "+------------------------------------------------------------------------------+"<<endl;
                     cout << "| / Please create a password!                                                  |" << endl;
-                    cout << "| Full Name: " << full_name, generateSpace(full_name, "| Full Name: "), cout << "|\n";
-                    cout << "| Student Number: " << number, generateSpace(str_number, "| Student Number: "), cout << "|\n";
-                    cout << "| Username: " << username, generateSpace(username, "| Username: "), cout << "|\n";
+                    cout << printUI("| Full Name: ", full_name);
+                    cout << printUI("| Student Number: ", str_number);
+                    cout << printUI("| Username: ", username);
                     cout << "| Password: ";
 
                     // Hide user input
@@ -441,10 +513,10 @@ loginInfo showLoginMenu(sqlite3* db) {
                     passwordConfirmErrMsg:
                     cout << "+------------------------------------------------------------------------------+"<<endl;
                     cout << "|                                                                              |" << endl;
-                    cout << "| Full Name: " << full_name, generateSpace(full_name, "| Full Name: "), cout << "|\n";
-                    cout << "| Student Number: " << number, generateSpace(str_number, "| Student Number: "), cout << "|\n";
-                    cout << "| Username: " << username, generateSpace(username, "| Username: "), cout << "|\n";
-                    cout << "| Password: ", printAsterisk(password.length()), generateSpace(password, "| Password: "), cout << "|\n";
+                    cout << printUI("| Full Name: ", full_name);
+                    cout << printUI("| Student Number: ", str_number);
+                    cout << printUI("| Username: ", username);
+                    cout << printUI("| Password: ", printAsterisk(password.length()));
                     cout << "|                                                                              |" << endl;
                     cout << "| Is all the data above is correct? (Y/n)                                      |" << endl;
                     cout << "|                                                                              |" << endl;
@@ -554,7 +626,6 @@ loginInfo showLoginMenu(sqlite3* db) {
         cout << "| > Invalid option! Please enter the available option.                         |" << endl;
         goto loginMenuErrMsg;
     }
-
     return login_info;
 }
 
