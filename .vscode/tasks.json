@@ -8,7 +8,7 @@
                 "-fdiagnostics-color=always",
                 "-g",
                 "${file}",
-                "C:/Delysium/test/student-score-management-system/src/sqlite_query.cpp",
+                "${fileDirname}/sqlite_query.cpp",
                 "C:/msys64/ucrt64/lib/libsqlite3.a",
                 "-DSQLITE_DEFAULT_FOREIGN_KEYS=1",
                 "-o",
