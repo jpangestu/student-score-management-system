@@ -1,3 +1,0 @@
-#!/bin/sh
-
-./studentScoreSystem.exe
