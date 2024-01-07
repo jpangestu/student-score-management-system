@@ -40,17 +40,18 @@ statement create_statement(sqlite3* db, const std::string &sql_query) {
     return statement(stmt, sqlite3_finalize);
 }
 
-// Bind int parameter
-void parameter(sqlite3_stmt* stmt, int index, int value) {
+// Bind int variable to a prepared sqlite3_stmt*
+void bindVariable(sqlite3_stmt* stmt, int index, int value) {
     if (sqlite3_bind_int(stmt, index, value) != SQLITE_OK) {
-        throw(std::invalid_argument("Error, sqlite3_bind can't accept your value"));
+        throw(std::invalid_argument("Error! sqlite3_bind_int from bindVariable() function can't accept your value"));
     }
 }
 
-// Bind string parameter
-void parameter(sqlite3_stmt* stmt, int index, const std::string& value) {
-    if (sqlite3_bind_text(stmt, index, value.c_str(), value.size(), SQLITE_TRANSIENT) != SQLITE_OK) {
-        throw(std::invalid_argument("Error, sqlite3_bind can't accept your value"));
+// Bind string variable to a prepared sqlite3_stmt*
+void bindVariable(sqlite3_stmt* stmt, int index, const std::string& value) {
+    std::string value2 = value;
+    if (sqlite3_bind_text(stmt, index, value2.c_str(), value2.size(), SQLITE_TRANSIENT) != SQLITE_OK) {
+        throw(std::invalid_argument("Error! sqlite3_bind_text from bindVariable() function can't accept your value"));
     }
 }
 
@@ -62,4 +63,16 @@ int get_int_value(sqlite3_stmt* stmt, int indexColumn) {
 // Get string/text value from SQLite table
 std::string get_text_value(sqlite3_stmt* stmt, int indexColumn) {
     return std::string(reinterpret_cast<const char*>(sqlite3_column_text(stmt, indexColumn)));
+}
+
+// Get total number of rows from sqlite query
+// Use SELECT count(*) in the query
+int getTotalRow(sqlite3_stmt* stmt) {
+    int total_row;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        total_row = get_int_value(stmt, 0);
+    } else {
+
+    }
+    return total_row;
 }

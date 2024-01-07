@@ -24,6 +24,7 @@ bool oneCharExist(string input);
 string toDefaultTextStyle(string input);
 void clearScreen();
 loginInfo showLoginMenu(sqlite3* db);
+bool showLecturerMenu(sqlite3* db, loginInfo loginInfo);
 
 int main() {
     clearScreen();
@@ -35,11 +36,15 @@ int main() {
 
 
     // ##Front-End##
+    loginMenu:
     loginInfo loginInfo = showLoginMenu(db.get());
 
-    cout << loginInfo.status << endl;
-    cout << loginInfo.name << endl;
-    cout << loginInfo.number << endl;
+    if (loginInfo.status == "lecturer") {
+        if (showLecturerMenu(db.get(), loginInfo) == true) {
+            clearScreen();
+            goto loginMenu;
+        }
+    }
 
 }
 
@@ -88,10 +93,10 @@ string printUI(string option) {
 }
 
 string printUIErr(string error_message) {
-    string s= "+------------------------------------------------------------------------------+\n| > ";
+    string s= "+------------------------------------------------------------------------------+\n| !> ";
     s += error_message;
     // 80 is the total number of character per line in the interface
-    size_t length = 80 - (error_message.length() + 4); // +4 is for counting the "| > "
+    size_t length = 80 - (error_message.length() + 5); // +4 is for counting the "| > "
     for (size_t i = 1; i < length; i++) {
         s += " ";
         if (i == length - 1) {
@@ -99,6 +104,163 @@ string printUIErr(string error_message) {
         }
     }  
     return s;
+}
+
+// Print out (one) table data *part of printTableData() function
+void printColumn(string column_title, size_t max_length, bool left) {
+    if (left == false) {
+        cout << column_title;
+        for (size_t i = 0; i < max_length - column_title.length(); i++) {
+            cout << " ";
+
+            if (i == max_length - column_title.length() - 1) {
+                cout << " | ";
+            }
+        }
+        if (column_title.length() == max_length) {
+            cout << " | ";
+        }
+    } else {
+        cout << "| " << column_title;
+        for (size_t i = 0; i < max_length - column_title.length(); i++) {
+            cout << " ";
+
+            if (i == max_length - column_title.length() - 1) {
+                cout << " | ";
+            }
+        }
+        if (column_title.length() == max_length) {
+            cout << " | ";
+        }
+    }
+}
+
+// Print out strip & plus *part of printTableData() function
+void printStrip(size_t max_length, bool left) {
+    if (left == true) {
+        cout << "+";
+        for (size_t i = 0; i < max_length + 2; i++) {
+            cout << "-";
+
+            if (i == max_length + 1) {
+                cout << "+";
+            }
+        }
+    } else {
+        for (size_t i = 0; i < max_length + 2; i++) {
+            cout << "-";
+
+            if (i == max_length + 1) {
+                cout << "+";
+            }
+        }
+    }
+}
+
+// Print out data from your SQLite table
+// Requires prepared sqlite3_stmt and total row of your SQLite table (do SELECT count(*) ...)
+void printTableData(sqlite3_stmt* stmt, unsigned int total_row) {
+    unsigned int total_column = sqlite3_column_count(stmt);
+
+    // Data (column value) is stored in two different array because the data type different
+    int int_data[total_row][total_column];
+    string str_data[total_row][total_column];
+    
+    // Store/get column name from the sqlite table
+    string column_name[total_column];
+    for (int i = 0; i < total_column; i++) {
+        column_name[i] = sqlite3_column_name(stmt, i);
+    }
+
+    // Set column name character length as the default max column value character length
+    size_t max_col_value_length[total_column];
+    for (size_t i = 0; i < total_column; i++) {
+        max_col_value_length[i] = column_name[i].length();
+    }
+
+    // Get column value from sqlite table
+    int index = 0;
+    // The number of times sqlite3_step will return SQLITE_ROW will match the total_row
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        for (int i = 0; i < total_column; i++) {
+            if (sqlite3_column_type(stmt, i) == SQLITE_INTEGER) {
+                int_data[index][i] = get_int_value(stmt, i);
+
+                // Update max column value character length value (if needed)
+                if (to_string(int_data[index][i]).length() > max_col_value_length[i]) {
+                    max_col_value_length[i] = to_string(int_data[index][i]).length();
+                }
+            }
+            if (sqlite3_column_type(stmt, i) == SQLITE_TEXT) {
+                str_data[index][i] = get_text_value(stmt, i);
+
+                // Update max column value character length value (if needed)
+                if (str_data[index][i].length() > max_col_value_length[i]) {
+                    max_col_value_length[i] = str_data[index][i].length();
+                }
+            }
+        }
+        index++;
+    } 
+
+    // Print out top strip
+    for (int i = 0; i < total_column; i++) {
+        bool left = false;
+        if (i == 0) {
+            left = true;
+        }
+        printStrip(max_col_value_length[i], left);
+    }
+    cout << endl;
+
+    // Print out column name/title
+        for (int i = 0; i < total_column; i++) {
+        bool left = false;
+        if (i == 0) {
+            left = true;
+        }
+        printColumn(column_name[i], max_col_value_length[i], left);
+    }
+    cout << endl;
+
+    // Print out strip after column name
+    for (int i = 0; i < total_column; i++) {
+        bool left = false;
+        if (i == 0) {
+            left = true;
+        }
+        printStrip(max_col_value_length[i], left);
+    }
+    cout << endl;
+
+    // Print out column value
+    for (int i = 0; i < total_row; i++) {
+        for (int j = 0; j < total_column; j++) {
+            // Check data existence because the data are stored in two different array
+            bool left = false;
+            if (!str_data[i][j].empty()) {
+                if (j == 0) {
+                    left = true;
+                }
+                printColumn(str_data[i][j], max_col_value_length[j], left);
+            } else {
+                if (j == 0) {
+                    left = true;
+                }
+                printColumn(to_string(int_data[i][j]), max_col_value_length[j], left);
+            }
+        }
+        cout << endl;
+    }
+
+    // Print out bottom strip
+    for (int i = 0; i < total_column; i++) {
+        bool left = false;
+        if (i == 0) {
+            left = true;
+        }
+        printStrip(max_col_value_length[i], left);
+    }
 }
 
 // Replace user input (password) with *
@@ -136,7 +298,7 @@ string getpassword( const string& prompt) {
     return result;
 }
 
-// Print asterisk as many as a string variable length
+// Print asterisk as many as a string variable length (to avoid printing out user's password)
 string printAsterisk(size_t length) {
     string s;
     for (int i = 0; i < length; i++) {
@@ -148,7 +310,7 @@ string printAsterisk(size_t length) {
 // Make sure there is at least 1 character
 bool oneCharExist(string input) {
     bool flag = false;
-    for (int i = 0; i < input.length(); i++) {
+    for (size_t i = 0; i < input.length(); i++) {
         if (input[i] >= 'a' && input[i] <= 'z' || input[i] >= 'A' && input[i] <= 'Z' ) {
             flag = true;
         }
@@ -198,18 +360,18 @@ void clearScreen() {
 
 
     // #Front-End#
-
+// Login & register menu
+// Return user's name, student/lecturer number, and user's status inside of loginInfor (struct)
 loginInfo showLoginMenu(sqlite3* db) {
-    int login_failed = 0;
     string option;
     loginInfo login_info;
     loginMenu:
     cout << endl << endl;
     loginMenuErrMsg:
     cout << "+------------------------------------------------------------------------------+" << endl;
-    cout << "|   Choose one option below by typing the number (0,1,2,.. )                   |" << endl;
+    cout << "| > Choose one option below by typing the number (0,1,2,.. )                   |" << endl;
     cout << "| 1. Login                                                                     |" << endl;
-    cout << "| 2. Create Account                                                            |" << endl;
+    cout << "| 2. Register                                                                  |" << endl;
     cout << "|                                                                              |" << endl;
     cout << "|                                                                  |  0. Exit  |" << endl;
     cout << "+------------------------------------------------------------------+-----------+" << endl;
@@ -225,14 +387,14 @@ loginInfo showLoginMenu(sqlite3* db) {
         cout << endl << endl;
         loginOptionErrMsg:
         cout << "+------------------------------------------------------------------------------+" << endl;
-        cout << "|   Insert your username                                                       |" << endl;
+        cout << "| > Insert your username                                                       |" << endl;
         cout << "| Username:    ";
         getline(cin, username);
 
         clearScreen();
         cout << endl << endl;
         cout << "+------------------------------------------------------------------------------+"<<endl;
-        cout << "|   Insert your password                                                       |" << endl;
+        cout << "| > Insert your password                                                       |" << endl;
         cout << printUI("| Username:    ", username);
         cout << "| Password:    ";
         password = getpassword("");
@@ -241,13 +403,13 @@ loginInfo showLoginMenu(sqlite3* db) {
         string query = R"(
         SELECT number FROM person WHERE username = ?)";
         statement stmt = create_statement(db, query);
-        parameter(stmt.get(), 1, username);
+        bindVariable(stmt.get(), 1, username);
         if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
             query = R"(
             SELECT number, name, status FROM person WHERE username = ? AND password = ?)";
             stmt = create_statement(db, query);
-            parameter(stmt.get(), 1, username);
-            parameter(stmt.get(), 2, password);
+            bindVariable(stmt.get(), 1, username);
+            bindVariable(stmt.get(), 2, password);
             if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
                 login_info.number = get_int_value(stmt.get(), 0);
                 login_info.name = get_text_value(stmt.get(), 1);
@@ -271,7 +433,7 @@ loginInfo showLoginMenu(sqlite3* db) {
             cout << printUI("| Username:    ", username);
             cout << printUI("| Password:    ", printAsterisk(password.length()));
             cout << "|                                                                              |" << endl;
-            cout << "| Do you want to try to login again? (Y/n)                                     |" << endl;
+            cout << "| > Do you want to try to login again? (Y/n)                                   |" << endl;
             cout << "|                                                                              |" << endl;
             cout << "|                                                      |  9. Back  |  0. Exit  |" << endl;
             cout << "+------------------------------------------------------+-----------+-----------+" << endl;
@@ -305,12 +467,12 @@ loginInfo showLoginMenu(sqlite3* db) {
         cout << endl << endl;
         registerOptionErrMsg:
         cout << "+------------------------------------------------------------------------------+" << endl;
-        cout << "|   Are you a Student or a Lecturer?                                           |" << endl;
+        cout << "| > Are you a Student or a Lecturer?                                           |" << endl;
         cout << "| 1. Student                                                                   |" << endl;
         cout << "| 2. Lecturer                                                                  |" << endl;
         cout << "|                                                                              |" << endl;
-        cout << "|                                                      |  9. Back  |  0. Exit  |" << endl;
-        cout << "+------------------------------------------------------+-----------+-----------+" << endl;
+        cout << "|  7. Prev. Menu  |                                    |  9. Back  |  0. Exit  |" << endl;
+        cout << "+-----------------+------------------------------------+-----------+-----------+" << endl;
         cout << "| Input: ";
         getline(cin, option);
 
@@ -321,6 +483,9 @@ loginInfo showLoginMenu(sqlite3* db) {
         } else if (option == "2") {
             clearScreen();
             status = "lecturer";
+        } else if (option == "7") {
+            clearScreen();
+            goto loginMenu;
         } else if (option == "9") {
             clearScreen();
             goto loginMenu;
@@ -337,7 +502,7 @@ loginInfo showLoginMenu(sqlite3* db) {
         cout << endl << endl;
         enterFullNameErrMsg:
         cout << "+------------------------------------------------------------------------------+" << endl;
-        cout << "|   Please enter your Full Name!                                               |" << endl;
+        cout << "| > Please enter your Full Name!                                               |" << endl;
         cout << "| Full Name:           ";
         getline(cin, full_name);
 
@@ -361,10 +526,10 @@ loginInfo showLoginMenu(sqlite3* db) {
         cout << "|                                                                              |" << endl;
         cout << printUI("| Full Name:           ", full_name);
         cout << "|                                                                              |" << endl;
-        cout << "| Do you want to continue with this Name? (Y/n)                                |" << endl;
+        cout << "| > Do you want to continue with this Name? (Y/n)                              |" << endl;
         cout << "|                                                                              |" << endl;
-        cout << "|                                                      |  9. Back  |  0. Exit  |" << endl;
-        cout << "+------------------------------------------------------+-----------+-----------+" << endl;
+        cout << "|  7. Prev. Menu  |                                    |  9. Back  |  0. Exit  |" << endl;
+        cout << "+-----------------+------------------------------------+-----------+-----------+" << endl;
         cout << "| Input: ";
         getline(cin, option);
 
@@ -374,7 +539,7 @@ loginInfo showLoginMenu(sqlite3* db) {
             cout << endl << endl;
             enterNumberErrMsg:
             cout << "+------------------------------------------------------------------------------+"<<endl;
-            cout << "|   Please enter your Student/Lecturer Number!                                 |" << endl;
+            cout << "| > Please enter your Student/Lecturer Number!                                 |" << endl;
             cout << printUI("| Full Name:           ", full_name);
             cout << "| Number:              ";
             getline(cin, str_number);
@@ -396,7 +561,7 @@ loginInfo showLoginMenu(sqlite3* db) {
             // Check student number in database
             string query = "SELECT number FROM person WHERE number = ?";
             statement stmt = create_statement(db, query);
-            parameter(stmt.get(), 1, number);
+            bindVariable(stmt.get(), 1, number);
 
             if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
                 clearScreen();
@@ -412,10 +577,10 @@ loginInfo showLoginMenu(sqlite3* db) {
             cout << printUI("| Full Name:           ", full_name);
             cout << printUI("| Number:              ", str_number);
             cout << "|                                                                              |" << endl;
-            cout << "| Do you want to continue with this Number? (Y/n)                              |" << endl;
+            cout << "| > Do you want to continue with this Number? (Y/n)                            |" << endl;
             cout << "|                                                                              |" << endl;
-            cout << "|                                                      |  9. Back  |  0. Exit  |" << endl;
-            cout << "+------------------------------------------------------+-----------+-----------+" << endl;
+            cout << "|  7. Prev. Menu  |                                    |  9. Back  |  0. Exit  |" << endl;
+            cout << "+-----------------+------------------------------------+-----------+-----------+" << endl;
             cout << "| Input: ";
             getline(cin, option);
 
@@ -425,7 +590,7 @@ loginInfo showLoginMenu(sqlite3* db) {
                 cout << endl << endl;
                 enterUsernameErrMsg:
                 cout << "+------------------------------------------------------------------------------+"<<endl;
-                cout << "|   Please create a Username!                                                  |" << endl;
+                cout << "| > Please create a Username!                                                  |" << endl;
                 cout << printUI("| Full Name:           ", full_name);
                 cout << printUI("| Number:              ", str_number);
                 cout << "| Username:            ";
@@ -449,7 +614,7 @@ loginInfo showLoginMenu(sqlite3* db) {
                 // Check username in database
                 query = "SELECT username FROM person WHERE username = ?";
                 statement stmt = create_statement(db, query);
-                parameter(stmt.get(), 1, username);
+                bindVariable(stmt.get(), 1, username);
 
                 if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
                     clearScreen();
@@ -466,10 +631,10 @@ loginInfo showLoginMenu(sqlite3* db) {
                 cout << printUI("| Number:              ", str_number);
                 cout << printUI("| Username:            ", username);
                 cout << "|                                                                              |" << endl;
-                cout << "| Do you want to continue with this Username? (Y/n)                            |" << endl;
+                cout << "| > Do you want to continue with this Username? (Y/n)                          |" << endl;
                 cout << "|                                                                              |" << endl;
-                cout << "|                                                      |  9. Back  |  0. Exit  |" << endl;
-                cout << "+------------------------------------------------------+-----------+-----------+" << endl;
+                cout << "|  7. Prev. Menu  |                                    |  9. Back  |  0. Exit  |" << endl;
+                cout << "+-----------------+------------------------------------+-----------+-----------+" << endl;
                 cout << "| Input: ";
                 getline(cin, option);
 
@@ -478,7 +643,7 @@ loginInfo showLoginMenu(sqlite3* db) {
                     enterPassword:
                     cout << endl << endl;
                     cout << "+------------------------------------------------------------------------------+"<<endl;
-                    cout << "|   Please create a password!                                                  |" << endl;
+                    cout << "| > Please create a password!                                                  |" << endl;
                     cout << printUI("| Full Name:           ", full_name);
                     cout << printUI("| Number:              ", str_number);
                     cout << printUI("| Username:            ", username);
@@ -489,7 +654,7 @@ loginInfo showLoginMenu(sqlite3* db) {
                     enterPassword2:
                     cout << endl << endl;
                     cout << "+------------------------------------------------------------------------------+"<<endl;
-                    cout << "|   Please create a password!                                                  |" << endl;
+                    cout << "| > Please create a password!                                                  |" << endl;
                     cout << printUI("| Full Name:           ", full_name);
                     cout << printUI("| Number:              ", str_number);
                     cout << printUI("| Username:            ", username);
@@ -509,10 +674,10 @@ loginInfo showLoginMenu(sqlite3* db) {
                         cout << printUI("| Password:            ", printAsterisk(password.length()));
                         cout << printUI("| Confirm Password:    ", password2);
                         cout << "|                                                                              |" << endl;
-                        cout << "| Do you want to enter a new password? (Y/n)                                   |" << endl;
+                        cout << "| > Do you want to enter a new password? (Y/n)                                 |" << endl;
                         cout << "|                                                                              |" << endl;
-                        cout << "|                                                      |  9. Back  |  0. Exit  |" << endl;
-                        cout << "+------------------------------------------------------+-----------+-----------+" << endl;
+                        cout << "|  7. Prev. Menu  |                                    |  9. Back  |  0. Exit  |" << endl;
+                        cout << "+-----------------+------------------------------------+-----------+-----------+" << endl;
                         cout << "| Input: ";
                         getline(cin, option);
 
@@ -522,6 +687,9 @@ loginInfo showLoginMenu(sqlite3* db) {
                         } else if (option == "n" || option == "N") {
                             clearScreen();
                             goto enterPassword2;
+                        } else if (option == "7") {
+                            clearScreen();
+                            goto loginMenu;
                         } else if (option == "9") {
                             clearScreen();
                             goto enterPassword;
@@ -546,10 +714,10 @@ loginInfo showLoginMenu(sqlite3* db) {
                     cout << printUI("| Username:            ", username);
                     cout << printUI("| Password:            ", printAsterisk(password.length()));
                     cout << "|                                                                              |" << endl;
-                    cout << "| Is all the data above is correct? (Y/n)                                      |" << endl;
+                    cout << "| > Is all the data above is correct? (Y/n)                                    |" << endl;
                     cout << "|                                                                              |" << endl;
-                    cout << "|                                                      |  9. Back  |  0. Exit  |" << endl;
-                    cout << "+------------------------------------------------------+-----------+-----------+" << endl;
+                    cout << "|  7. Prev. Menu  |                                    |  9. Back  |  0. Exit  |" << endl;
+                    cout << "+-----------------+------------------------------------+-----------+-----------+" << endl;
                     cout << "| Input: ";
                     getline(cin, option);
 
@@ -558,11 +726,11 @@ loginInfo showLoginMenu(sqlite3* db) {
                         query = R"(INSERT INTO person (number, name, username, password, status)
                         VALUES (?, ?, ?, ?, ?))";
                         statement stmt = create_statement(db, query);
-                        parameter(stmt.get(), 1, number);
-                        parameter(stmt.get(), 2, full_name);
-                        parameter(stmt.get(), 3, username);
-                        parameter(stmt.get(), 4, password);
-                        parameter(stmt.get(), 5, status);
+                        bindVariable(stmt.get(), 1, number);
+                        bindVariable(stmt.get(), 2, full_name);
+                        bindVariable(stmt.get(), 3, username);
+                        bindVariable(stmt.get(), 4, password);
+                        bindVariable(stmt.get(), 5, status);
 
                         // sqlite3_step will return SQLITE_DONE when all the statements are successfully executed 
                         if (sqlite3_step(stmt.get()) == SQLITE_DONE) {
@@ -578,6 +746,9 @@ loginInfo showLoginMenu(sqlite3* db) {
                     } else if (option == "n" || option == "N") {
                         clearScreen();
                         goto enterPassword;
+                    } else if (option == "7") {
+                        clearScreen();
+                        goto loginMenu;
                     } else if (option == "9") {
                         clearScreen();
                         goto enterUsername;
@@ -594,6 +765,9 @@ loginInfo showLoginMenu(sqlite3* db) {
                 } else if (option == "n" || option == "N") {
                     clearScreen();
                     goto enterUsername;
+                } else if (option == "7") {
+                    clearScreen();
+                    goto loginMenu;
                 } else if (option == "9") {
                     clearScreen();
                     goto enterNumber;
@@ -610,6 +784,9 @@ loginInfo showLoginMenu(sqlite3* db) {
             } else if (option == "n" || option == "N") {
                 clearScreen();
                 goto enterNumber;
+            } else if (option == "7") {
+                clearScreen();
+                goto loginMenu;
             } else if (option == "9") {
                 clearScreen();
                 goto enterFullName;
@@ -626,6 +803,9 @@ loginInfo showLoginMenu(sqlite3* db) {
         } else if (option == "n" || option == "N") {
             clearScreen();
             goto enterFullName;
+        } else if (option == "7") {
+            clearScreen();
+            goto loginMenu;
         } else if (option == "9") {
             clearScreen();
             goto registerOption;
@@ -650,6 +830,118 @@ loginInfo showLoginMenu(sqlite3* db) {
     return login_info;
 }
 
+// Lecturer menu
+// Return bool to check whether the user want to go back to login & register menu (true if yes)
+bool showLecturerMenu(sqlite3* db, loginInfo loginInfo) {
+    string option;
+    lecturerMenu:
+    cout << endl << endl;
+    lecturerMenuErrMsg:
+    cout << "+------------------------------------------------------------------------------+" << endl;
+    cout << "| 1. View Score                                                                |" << endl;
+    cout << "| 2. Add Score                                                                 |" << endl;
+    cout << "| 3. Edit Score                                                                |" << endl;
+    cout << "|                                                                              |" << endl;
+    cout << "|  7. Logout  |                                                    |  0. Exit  |" << endl;
+    cout << "+-------------+----------------------------------------------------+-----------+" << endl;
+    cout << "| Input: ";
+    getline(cin, option);
+
+    if (option == "1") {
+        // Get lecturer's subject list
+        string query = R"(SELECT count(name) FROM subject_list WHERE lecturer_number = ?)";
+        statement stmt = create_statement(db, query);
+        bindVariable(stmt.get(), 1, loginInfo.number);
+        int total_row = getTotalRow(stmt.get());
+        string subject_list[total_row];
+        
+        // If there's no subject lectured by the lecturer
+        if (total_row == 0) {
+            clearScreen();
+            cout << printUIErr("Currently, there's no subject lectured by you.");
+            cout << "+------------------------------------------------------------------------------+" << endl;
+            system("pause");
+            clearScreen();
+            goto lecturerMenu;
+        }
+
+        query = R"(
+        SELECT name FROM subject_list WHERE lecturer_number = ?)";
+        stmt = create_statement(db, query);
+        bindVariable(stmt.get(), 1, loginInfo.number);
+        int i = 0;
+        while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+            subject_list[i] = get_text_value(stmt.get(), 0);
+            i++;
+        }
+
+        // Output all scores from all subjects lectured by lecturer
+        query = R"(
+        SELECT count(score.semester)
+        FROM score
+        INNER JOIN person ON score.student_number = person.number
+        INNER JOIN subject_list ON score.subject_id = subject_list.id
+        WHERE subject_list.lecturer_number = ?
+        ORDER BY subject_list.name;)";
+        stmt = create_statement(db, query);
+        bindVariable(stmt.get(), 1, loginInfo.number);
+        // bindVariable(stmt.get(), 2, subject_list[1]);
+
+        total_row = getTotalRow(stmt.get());
+
+        // If there's no score recorded
+        if (total_row == 0) {
+            clearScreen();
+            cout << printUIErr("Scores data not found");
+            cout << "+------------------------------------------------------------------------------+" << endl;
+            system("pause");
+            clearScreen();
+            goto lecturerMenu;
+        }
+
+        query = R"(
+        SELECT score.semester AS "Semester", subject_list.lecturer_number, subject_list.name AS "Subject", person.name AS "Student Name", score.student_number AS "Student Number", score.score AS "Score", score.grade AS "Grade"
+        FROM score
+        INNER JOIN person ON score.student_number = person.number
+        INNER JOIN subject_list ON score.subject_id = subject_list.id        
+        WHERE subject_list.lecturer_number = ?;
+        ORDER BY subject_list.name;)";
+
+        stmt = create_statement(db, query);
+        bindVariable(stmt.get(), 1, loginInfo.number);
+        // bindVariable(stmt.get(), 2, subject_list[1]);
+
+        cout << subject_list[0] << endl << subject_list[1] << endl;
+        printTableData(stmt.get(), total_row);
+        clearScreen();
+        viewScoreOption:
+        cout << endl << endl;
+        printTableData(stmt.get(), total_row);
+        cout << endl;
+        viewScoreOptionErrMsg:
+        system("pause");
+        clearScreen();
+        goto lecturerMenu;
+    } else if (option == "2") {
+        clearScreen();
+        
+    } else if (option == "3") {
+        clearScreen();
+        
+    } else if (option == "7") {
+        clearScreen();
+        return true;
+    } else if(option == "0") {
+        clearScreen();
+        exit(EXIT_SUCCESS);
+    } else {
+        clearScreen();
+        cout << printUIErr("Invalid option. Please enter the available option!");
+        goto lecturerMenuErrMsg;
+    }
+    return false;
+}
+
 // Query to create default sql tables (schema).
 constexpr const char* default_schema() {
     return R"(
@@ -658,7 +950,7 @@ constexpr const char* default_schema() {
         name TEXT NOT NULL,
         username TEXT NOT NULL,
         password TEXT NOT NULL,
-        status TEXT NOT NULL
+        status TEXT NOT NULL,
     );
 
     CREATE UNIQUE INDEX IF NOT EXISTS number ON person(number);
