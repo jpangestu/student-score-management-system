@@ -18,12 +18,9 @@ struct loginInfo {
 
 // #Function prototype (forward declaration)#
 constexpr const char* default_schema();
-string printUI(string message, string variable);
-string printAsterisk(int length);
-bool oneCharExist(string input);
-string toDefaultTextStyle(string input);
 void clearScreen();
 loginInfo showLoginMenu(sqlite3* db);
+bool showStudentMenu(sqlite3* db, loginInfo loginInfo);
 bool showLecturerMenu(sqlite3* db, loginInfo loginInfo);
 
 int main() {
@@ -41,6 +38,11 @@ int main() {
 
     if (loginInfo.status == "lecturer") {
         if (showLecturerMenu(db.get(), loginInfo) == true) {
+            clearScreen();
+            goto loginMenu;
+        }
+    } else {
+        if (showStudentMenu(db.get(), loginInfo) == true) {
             clearScreen();
             goto loginMenu;
         }
@@ -106,6 +108,31 @@ string printUIErr(string error_message) {
     return s;
 }
 
+void printUIErr(string error_message, int max_table_length) {
+    for (int i = 0; i < max_table_length; i++) {
+        if (i == 0) {
+            cout << "+";
+        } else if (i == max_table_length - 1) {
+            cout << "+\n";
+        } else {
+            cout << "-";
+        }
+    }
+
+    string s = "| !> ";
+    s += error_message;
+    for (int i = 0; i < max_table_length; i++) {
+        if (i == 0) {
+            cout << "| !> " << error_message;
+        } else if (i == max_table_length - 1) {
+            cout << "|\n";
+        } else {
+            cout << " ";
+        }
+    }
+    cout << s;
+}
+
 // Print out (one) table data *part of printTableData() function
 void printColumn(string column_title, size_t max_length, bool left) {
     if (left == false) {
@@ -159,7 +186,7 @@ void printStrip(size_t max_length, bool left) {
 
 // Print out data from your SQLite table
 // Requires prepared sqlite3_stmt and total row of your SQLite table (do SELECT count(*) ...)
-void printTableData(sqlite3_stmt* stmt, unsigned int total_row) {
+int printTableData(sqlite3_stmt* stmt, unsigned int total_row) {
     unsigned int total_column = sqlite3_column_count(stmt);
 
     // Data (column value) is stored in two different array because the data type different
@@ -261,6 +288,51 @@ void printTableData(sqlite3_stmt* stmt, unsigned int total_row) {
         }
         printStrip(max_col_value_length[i], left);
     }
+    cout << endl;
+
+    // Count max table character length (all column value length + all the spaces and '|'
+    // 2 is for counting the "| " for each leftmost column in printColumn()
+    int max_table_length = 2;
+
+    for (size_t i = 0; i < total_column; i++) {
+        max_table_length += max_col_value_length[i] + 3; // 3 is for counting the " | " in printColumn()
+    }
+    // - 1 is for ignoring the space after "+" or "|" in the rightmost column from printColumn()
+    max_table_length -= 1;
+    return max_table_length;
+}
+
+// Print out display option from student menu dynamically
+void printStudentDisOpt(int max_table_length) {
+    string exit = "  0. Exit  ", logout = "  7. Logout  ";
+
+    // Print out option display
+    for (int i = 0; i < max_table_length; i++) {
+        if (i == 0) {
+            cout << "|" << logout;
+            i += logout.length(); 
+        } else if (i == max_table_length - exit.length() - 1) { // - 1 is for counting the "|"
+            cout << exit << "|";
+            break;
+        } else {
+            cout << " ";
+        }
+    }
+    cout << endl;
+
+    // Print out bottom border
+    for (int i = 0; i < max_table_length; i++) {
+        if (i == 0) {
+            cout << "+";
+        } else if (i == max_table_length - 1) {
+            cout << "+";
+        } else {
+            cout << "-";
+        }
+    }
+    cout << endl;
+
+    cout << "| Input: ";
 }
 
 // Replace user input (password) with *
@@ -830,31 +902,106 @@ loginInfo showLoginMenu(sqlite3* db) {
     return login_info;
 }
 
+// Student menu
+bool showStudentMenu(sqlite3* db, loginInfo loginInfo) {
+    string query = R"(
+    SELECT count(*)
+    FROM score
+    INNER JOIN subject_list ON score.subject_id = subject_list.id
+    INNER JOIN person ON subject_list.lecturer_number = person.number
+    WHERE score.student_number = ?
+    )";
+    statement stmt = create_statement(db, query);
+    bindVariable(stmt.get(), 1, loginInfo.number);
+
+    int total_row = getTotalRow(stmt.get());
+    string option;
+
+    // If there's no score recorded
+    if (total_row == 0) {
+        clearScreen();
+        cout << printUIErr("Scores data not found");
+        noScoreConfirmErrMsg:
+        cout << "+------------------------------------------------------------------------------+" << endl;
+        cout << "|                                                                              |" << endl;
+        cout << "|  7. Logout  |                                                    |  0. Exit  |" << endl;
+        cout << "+-------------+----------------------------------------------------+-----------+" << endl;
+        cout << "| Input: ";
+        getline(cin, option);
+
+        if (option == "7") {
+            clearScreen();
+            return true;
+        } else if (option == "0") {
+            clearScreen();
+            exit(EXIT_SUCCESS);
+        } else {
+            clearScreen();
+            cout << printUIErr("Invalid option. Please enter the available option!");
+            goto noScoreConfirmErrMsg;
+        }
+    }
+
+    query = R"(
+    SELECT score.semester AS "Semester", subject_list.name AS "Subject", person.name AS "Lecturer", score.score AS "Score", score.grade AS "Grade"
+    FROM score
+    INNER JOIN subject_list ON score.subject_id = subject_list.id
+    INNER JOIN person ON subject_list.lecturer_number = person.number
+    WHERE score.student_number = ?
+    ORDER BY subject_list.name;
+    )";
+
+    stmt = create_statement(db, query);
+    bindVariable(stmt.get(), 1, loginInfo.number);
+
+    // Print out scores
+    clearScreen();
+    studentMenu:
+    cout << endl << endl;
+    studentMenuErrMsg:
+    int max_table_length = printTableData(stmt.get(), total_row);
+    printStudentDisOpt(max_table_length);
+    getline(cin, option);
+
+    if (option == "7") {
+        clearScreen();
+        return true;
+    } else if (option == "0") {
+        clearScreen();
+        exit(EXIT_SUCCESS);
+    } else {
+        clearScreen();
+        printUIErr("Invalid option. Please enter the available option!", max_table_length);
+        goto studentMenuErrMsg;
+    }
+
+    return false;
+}
+
 // Lecturer menu
 // Return bool to check whether the user want to go back to login & register menu (true if yes)
 bool showLecturerMenu(sqlite3* db, loginInfo loginInfo) {
+    // Get lecturer's subject list
+    string query = R"(SELECT count(name) FROM subject_list WHERE lecturer_number = ?)";
+    statement stmt = create_statement(db, query);
+    bindVariable(stmt.get(), 1, loginInfo.number);
+    int total_row = getTotalRow(stmt.get());
+    string subject_list[total_row];
+
     string option;
     lecturerMenu:
     cout << endl << endl;
     lecturerMenuErrMsg:
     cout << "+------------------------------------------------------------------------------+" << endl;
     cout << "| 1. View Score                                                                |" << endl;
-    cout << "| 2. Add Score                                                                 |" << endl;
-    cout << "| 3. Edit Score                                                                |" << endl;
+    cout << "| 2. Add/Edit Score                                                            |" << endl;
     cout << "|                                                                              |" << endl;
-    cout << "|  7. Logout  |                                                    |  0. Exit  |" << endl;
-    cout << "+-------------+----------------------------------------------------+-----------+" << endl;
+    cout << "|  7. Logout  |                                        |  9. Back  |  0. Exit  |" << endl;
+    cout << "+-------------+----------------------------------------+-----------+-----------+" << endl;
     cout << "| Input: ";
     getline(cin, option);
 
-    if (option == "1") {
-        // Get lecturer's subject list
-        string query = R"(SELECT count(name) FROM subject_list WHERE lecturer_number = ?)";
-        statement stmt = create_statement(db, query);
-        bindVariable(stmt.get(), 1, loginInfo.number);
-        int total_row = getTotalRow(stmt.get());
-        string subject_list[total_row];
-        
+    if (option == "1") {        
         // If there's no subject lectured by the lecturer
         if (total_row == 0) {
             clearScreen();
@@ -877,15 +1024,16 @@ bool showLecturerMenu(sqlite3* db, loginInfo loginInfo) {
 
         // Output all scores from all subjects lectured by lecturer
         query = R"(
-        SELECT count(score.semester)
+        SELECT count(*)
         FROM score
         INNER JOIN person ON score.student_number = person.number
         INNER JOIN subject_list ON score.subject_id = subject_list.id
-        WHERE subject_list.lecturer_number = ?
-        ORDER BY subject_list.name;)";
+        INNER JOIN class_member ON score.student_number = class_member.student_number
+        INNER JOIN class ON class.id = class_member.class_id
+        WHERE subject_list.lecturer_number = ?;
+        )";
         stmt = create_statement(db, query);
         bindVariable(stmt.get(), 1, loginInfo.number);
-        // bindVariable(stmt.get(), 2, subject_list[1]);
 
         total_row = getTotalRow(stmt.get());
 
@@ -900,18 +1048,18 @@ bool showLecturerMenu(sqlite3* db, loginInfo loginInfo) {
         }
 
         query = R"(
-        SELECT score.semester AS "Semester", subject_list.lecturer_number, subject_list.name AS "Subject", person.name AS "Student Name", score.student_number AS "Student Number", score.score AS "Score", score.grade AS "Grade"
+        SELECT score.semester AS "Semester", subject_list.name AS "Subject", person.name AS "Student Name", score.student_number AS "Student Number", class.name AS "Class", score.score AS "Score", score.grade AS "Grade"
         FROM score
         INNER JOIN person ON score.student_number = person.number
-        INNER JOIN subject_list ON score.subject_id = subject_list.id        
-        WHERE subject_list.lecturer_number = ?;
+        INNER JOIN subject_list ON score.subject_id = subject_list.id
+        INNER JOIN class_member ON score.student_number = class_member.student_number
+        INNER JOIN class ON class.id = class_member.class_id
+        WHERE subject_list.lecturer_number = ?
         ORDER BY subject_list.name;)";
 
         stmt = create_statement(db, query);
         bindVariable(stmt.get(), 1, loginInfo.number);
-        // bindVariable(stmt.get(), 2, subject_list[1]);
 
-        cout << subject_list[0] << endl << subject_list[1] << endl;
         printTableData(stmt.get(), total_row);
         clearScreen();
         viewScoreOption:
@@ -923,8 +1071,73 @@ bool showLecturerMenu(sqlite3* db, loginInfo loginInfo) {
         clearScreen();
         goto lecturerMenu;
     } else if (option == "2") {
+        int number;
         clearScreen();
+        addEditScoreOption:
+        cout << endl << endl;
+        addEditScoreOptionErrMsg:
+        cout << "+------------------------------------------------------------------------------+" << endl;
+        cout << "| > Insert Student Number                                                      |" << endl;
+        cout << "| Student Number: ";
+        cin >> number;
+
+        // Check student in the database
+        query = "SELECT * FROM person WHERE number = ?;";
+        stmt = create_statement(db, query);
+        bindVariable(stmt.get(), 1, number);
+        if (sqlite3_step(stmt.get()) != SQLITE_ROW) {
+            clearScreen();
+            cout << printUIErr("Student is not in the database");
+            studentConfirmErrMsg:
+            cout << "+------------------------------------------------------------------------------+" << endl;
+            cout << "| > Insert Student Number                                                      |" << endl;
+            cout << printUI("| Student Number: ", to_string(number));
+            cout << "|                                                                              |" << endl;
+            cout << "| > Do you want to re-insert student number? (Y/n)                             |" << endl;
+            cout << "|                                                                              |" << endl;
+            cout << "|                                                      |  9. Back  |  0. Exit  |" << endl;
+            cout << "+------------------------------------------------------------------------------+" << endl;
+            cout << "| Input: ";
+            cin.ignore();
+            getline(cin, option);
+
+            if (option == "y" || option == "Y" || option.length() == 0) {
+                clearScreen();
+                goto addEditScoreOption;
+            } else if (option == "n" || option == "N" || option == "9") {
+                clearScreen();
+                goto lecturerMenu;
+            } else if (option == "0") {
+                clearScreen();
+                exit(EXIT_SUCCESS);
+            } else {
+                clearScreen();
+                cout << printUIErr("Invalid option. Please enter the available option!");
+                goto studentConfirmErrMsg;
+            }
+        }
+
+        // Check if student is in one of lecturer's subject/class
+        query = R"(
+            SELECT * FROM class_member
+            WHERE student_number = ?
+            AND class_id IN (SELECT class_id FROM subject_list WHERE lecturer_number = ?);
+        )";
+        stmt = create_statement(db, query);
+        bindVariable(stmt.get(), 1, number);
+        bindVariable(stmt.get(), 2, loginInfo.number);
+        if (sqlite3_step(stmt.get()) != SQLITE_ROW) {
+            clearScreen();
+            cout << printUIErr("Student is not in your class");
+            goto studentConfirmErrMsg;
+        }
         
+        // Show student scores (if exist)
+        query = R"(
+            SELECT * FROM subject_list
+            JOIN score ON subject_list.id = score.subject_id
+            WHERE score.student_number = 232301 AND subject_list.lecturer_number = 1121001;
+        )";
     } else if (option == "3") {
         clearScreen();
         
@@ -934,6 +1147,112 @@ bool showLecturerMenu(sqlite3* db, loginInfo loginInfo) {
     } else if(option == "0") {
         clearScreen();
         exit(EXIT_SUCCESS);
+    } else if(option == "6969") {
+        int number, classid;
+        string option, name, username, password, status, temp;
+        secretMenu:
+        cout << "1. Add student (automatically generate random score and class)\n2. Add Subject\n9. back\n\n";
+        getline(cin, option);
+
+        if (option == "1") {
+            cout << "Insert Name: ";
+            getline(cin, name);
+            name = toDefaultTextStyle(name);
+
+            cout << "Insert Number: ";
+            getline(cin, temp);
+            number = stoi(toDefaultTextStyle(temp));
+
+            cout << "Insert Username: ";
+            getline(cin, username);
+
+            cout << "Insert Password: ";
+            getline(cin, password);
+            
+            cout << "Insert Status: ";
+            getline(cin, status);
+
+            cout << name << number << username << password << status << endl;
+
+            query = "INSERT INTO person (number, name, username, password, status) VALUES (?, ?, ?, ?, ?);";
+            stmt = create_statement(db, query);
+            bindVariable(stmt.get(), 1, number);
+            bindVariable(stmt.get(), 2, name);
+            bindVariable(stmt.get(), 3, username);
+            bindVariable(stmt.get(), 4, password);
+            bindVariable(stmt.get(), 5, status);
+            if (sqlite3_step(stmt.get()) != SQLITE_DONE) {
+                clearScreen();
+                cout << "Error while inserting student to database\n";
+                goto secretMenu;
+            }
+
+            // Show all class in database
+            int total_row;
+            stmt = create_statement(db, "SELECT count(*) FROM class;");
+            total_row = getTotalRow(stmt.get());
+            stmt = create_statement(db, "SELECT * FROM class;");
+            printTableData(stmt.get(), total_row);
+
+            cout << endl << "Insert Class ID: ";
+            getline(cin, temp);
+            classid = stoi(temp);
+
+            stmt = create_statement(db, "INSERT INTO class_member (class_id, student_number) VALUES (?, ?);");
+            bindVariable(stmt.get(), 1, classid);
+            bindVariable(stmt.get(), 2, number);
+            if (sqlite3_step(stmt.get()) != SQLITE_DONE) {
+                clearScreen();
+                cout << "Error while inserting class to database\n";
+                goto secretMenu;
+            }
+            
+            // Get all subject in the class
+            stmt = create_statement(db, "SELECT count(*) FROM subject_list WHERE class_id = ?;");
+            bindVariable(stmt.get(), 1, classid);
+            int total_subject_in_class = getTotalRow(stmt.get());
+            string all_subject_id[total_subject_in_class];
+            stmt = create_statement(db, "SELECT id FROM subject_list WHERE class_id = ?;");
+            bindVariable(stmt.get(), 1, classid);
+            
+            int i = 0;
+            while (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+                all_subject_id[i] = get_int_value(stmt.get(), 0);
+            }
+
+            // Insert random scores
+            int range = 100 - 61 + 1;
+            for (int i = 0; i < total_subject_in_class; i++) {
+                int random_number = rand() % range + 61;
+                string grade;
+                if (random_number > 80) {
+                    grade = "A";
+                } else if (random_number > 70 && random_number < 80) {
+                    grade = "B";
+                } else {
+                    grade = "C";
+                }
+                stmt = create_statement(db, "INSERT INTO score (student_number, semester, subject_id, score, grade) VALUES (?, ?, ?, ?, ?);");
+                bindVariable(stmt.get(), 1, number);
+                bindVariable(stmt.get(), 1, 1);
+                bindVariable(stmt.get(), 1, all_subject_id[i]);
+                bindVariable(stmt.get(), 1, random_number);
+                bindVariable(stmt.get(), 1, grade);
+
+            }
+
+        } else if (option == "2") {
+            clearScreen();
+            cout << "not available";
+            goto secretMenu;
+        } else if (option == "9") {
+            clearScreen();
+            goto lecturerMenu;
+        } else {
+            clearScreen();
+            goto secretMenu;
+        }
+        
     } else {
         clearScreen();
         cout << printUIErr("Invalid option. Please enter the available option!");
@@ -950,18 +1269,35 @@ constexpr const char* default_schema() {
         name TEXT NOT NULL,
         username TEXT NOT NULL,
         password TEXT NOT NULL,
-        status TEXT NOT NULL,
+        status TEXT NOT NULL
     );
 
     CREATE UNIQUE INDEX IF NOT EXISTS number ON person(number);
     CREATE UNIQUE INDEX IF NOT EXISTS username ON person(username);
 
+    CREATE TABLE IF NOT EXISTS class(
+        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        name TEXT NOT NULL,
+        short_name TEXT NOT NULL,
+        year INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS class_member(
+        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        class_id INTEGER NOT NULL,
+        student_number INTEGER NOT NULL,
+        FOREIGN KEY(student_number) REFERENCES person(number)
+        FOREIGN KEY(class_id ) REFERENCES class(id)
+    );
+
     CREATE TABLE IF NOT EXISTS subject_list (
         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
         lecturer_number INTEGER NOT NULL,
         name TEXT NOT NULL,
+        class_id INTEGER NOT NULL,
         sks TEXT NOT NULL,
         FOREIGN KEY(lecturer_number) REFERENCES person(number)
+        FOREIGN KEY(class_id ) REFERENCES class(id)
     );
 
     CREATE TABLE IF NOT EXISTS score (
@@ -970,8 +1306,8 @@ constexpr const char* default_schema() {
         subject_id INTEGER NOT NULL,
         score INTEGER NOT NULL,
         grade TEXT NOT NULL,
-	FOREIGN KEY(student_number) REFERENCES person(number)
-	FOREIGN KEY(subject_id) REFERENCES subject_list(id)
+        FOREIGN KEY(student_number) REFERENCES person(number)
+        FOREIGN KEY(subject_id) REFERENCES subject_list(id)
     );
     )";
 }
