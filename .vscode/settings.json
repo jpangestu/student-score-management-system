@@ -50,6 +50,14 @@
         "typeinfo": "cpp",
         "bitset": "cpp",
         "ctime": "cpp",
-        "regex": "cpp"
-    }
+        "regex": "cpp",
+        "format": "cpp",
+        "xlocmes": "cpp",
+        "xlocmon": "cpp",
+        "xlocnum": "cpp",
+        "xloctime": "cpp",
+        "xutility": "cpp",
+        "xstring": "cpp"
+    },
+    "C_Cpp.errorSquiggles": "enabled"
 }

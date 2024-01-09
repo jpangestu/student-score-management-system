@@ -4,7 +4,6 @@
 #include "sqlite_query.h"
 
 // #Template for sqlite query#
-
 // Open/create new database or link existing database.
 database open_database(const char* name){
     sqlite3* db = nullptr;
