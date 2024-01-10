@@ -724,8 +724,8 @@ bool showStudentMenu(sqlite3* db, loginInfo login_info) {
     cout << "+------------------------------------------------------------------------------+" << endl;
     cout << "|                             WELCOME HOME STUDENT                             |" << endl;
     cout << "|                                                                              |" << endl;
-    cout << printUI("| Student Number      :   ", login_number);
-    cout << printUI("| Name                 :   ", login_info.name);
+    cout << printUI("| Student Number   :   ", login_number);
+    cout << printUI("| Name             :   ", login_info.name);
     cout << "|                                                                              |" << endl;
     cout << "+------------------------------------------------------------------------------+" << endl;
     cout << "|                                    MENU                                      |" << endl;
