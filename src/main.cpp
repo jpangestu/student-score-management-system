@@ -25,7 +25,7 @@ bool showStudentMenu(sqlite3* db, loginInfo login_info);
 bool showLecturerMenu(sqlite3* db, loginInfo login_info);
 
 
-const char* dir = R"(D:\.alprog\final-uas-fix\student-score-management-system\main.db)";
+const char* D = R"(D:\.alprog\final-uas-fix\student-score-management-system\main.db)";
 
 int main() {
     clearScreen();
@@ -45,11 +45,13 @@ int main() {
     if (loginInfo.status == "lecturer") {
         if (showLecturerMenu(db.get(), loginInfo) == true) {
             clearScreen();
+            cin.ignore();
             goto loginMenu;
         }
     } else {
         if (showStudentMenu(db.get(), loginInfo) == true) {
             clearScreen();
+            cin.ignore();
             goto loginMenu;
         }
     }
@@ -719,8 +721,10 @@ loginInfo showLoginMenu(sqlite3* db) {
 bool showStudentMenu(sqlite3* db, loginInfo login_info) {
     string option;
     string login_number = to_string(login_info.number);
-    menuMhs:
     clearScreen();
+    menuMhs:
+    cout << endl << endl;
+    menuMhsErrMsg:
     cout << "+------------------------------------------------------------------------------+" << endl;
     cout << "|                             WELCOME HOME STUDENT                             |" << endl;
     cout << "|                                                                              |" << endl;
@@ -732,9 +736,9 @@ bool showStudentMenu(sqlite3* db, loginInfo login_info) {
     cout << "|                                                                              |" << endl;
     cout << "| 1. Show your semester score                                                  |" << endl;
     cout << "|                                                                              |" << endl;
-    cout << "+------------------------------------------------------------------+-----------+" << endl;
-    cout << "|                                                                  |  0. Exit  |" << endl;
-    cout << "+------------------------------------------------------------------+-----------+" << endl;
+    cout << "+-------------+----------------------------------------------------+-----------+" << endl;
+    cout << "|  7. Logout  |                                                    |  0. Exit  |" << endl;
+    cout << "+-------------+----------------------------------------------------+-----------+" << endl;
     cout << "| Input: ";
     cin >> option;
 
@@ -773,9 +777,9 @@ bool showStudentMenu(sqlite3* db, loginInfo login_info) {
 
         if (n_smt < 9)
         {
-            cout << "|                           YOUR SEMESTER "<<n_smt<<" SCORE                             |" << endl;
+            cout << "|                           YOUR SEMESTER "<<n_smt<<" SCORE                              |" << endl;
         } else{
-            cout << "|                           YOUR SEMESTER "<<n_smt<<" SCORE                             |" << endl;
+            cout << "|                           YOUR SEMESTER "<<n_smt<<" SCORE                              |" << endl;
         }
 
         cout << "+--------------------------------------------------------------+-------+-------+" << endl;
@@ -811,11 +815,15 @@ bool showStudentMenu(sqlite3* db, loginInfo login_info) {
     {
         exit(EXIT_SUCCESS);
     } 
+    else if (option == "7") {
+        clearScreen();
+        return true;
+    }
     else 
     {
         clearScreen();
         cout << printUIErr("Invalid option. Please enter the available option!");
-        goto menuMhs;
+        goto menuMhsErrMsg;
     }
     return false;
 } 
@@ -827,8 +835,9 @@ bool showLecturerMenu(sqlite3* db, loginInfo login_info) {
     int int_opt, sub_id;
     string login_number = to_string(login_info.number);
     clearScreen();
-    cout << endl << endl;
     menuDsn:
+    cout << endl << endl;
+    menuDsnErrMsg:
     cout << "+------------------------------------------------------------------------------+" << endl;
     cout << "|                            WELCOME HOME LECTURER                             |" << endl;
     cout << "|                                                                              |" << endl;
@@ -843,9 +852,9 @@ bool showLecturerMenu(sqlite3* db, loginInfo login_info) {
     cout << "| 3. Edit student score                                                        |" << endl;
     cout << "| 4. Delete student score                                                      |" << endl;
     cout << "|                                                                              |" << endl;
-    cout << "+------------------------------------------------------------------+-----------+" << endl;
-    cout << "|                                                                  |  0. Exit  |" << endl;
-    cout << "+------------------------------------------------------------------+-----------+" << endl;
+    cout << "+-------------+----------------------------------------------------+-----------+" << endl;
+    cout << "|  7. Logout  |                                                    |  0. Exit  |" << endl;
+    cout << "+-------------+----------------------------------------------------+-----------+" << endl;
     cout << "| Input: ";
     cin >> option;
 
@@ -1008,11 +1017,11 @@ bool showLecturerMenu(sqlite3* db, loginInfo login_info) {
                 goto menuDsn;
             } else if (sub_id == 0) {
                 exit(EXIT_SUCCESS);
-            } else if(sub_id > rows) {
-                clearScreen();
-                cout << printUIErr("Invalid option. Please enter the available option!");
-                goto chooseClassErrMsg;
-            }
+            } //else if(sub_id > rows) {
+            //     clearScreen();
+            //     cout << printUIErr("Invalid option. Please enter the available option!");
+            //     goto chooseClassErrMsg;
+            // }
 
             clearScreen();
             menuAddSmt:
@@ -1054,9 +1063,14 @@ bool showLecturerMenu(sqlite3* db, loginInfo login_info) {
                         clearScreen();
                         cout << printUIErr("This Student Number already has a score. Please enter a different one!");
                         goto menuAddNimErrMsg;
+                    } else {
+                        query = "SELECT name FROM person WHERE number = ?";
+                        stmt = create_statement(db, query);
+                        parameter(stmt.get(), 1, str_nim);
+                        if (sqlite3_step(stmt.get()) == SQLITE_ROW) {
+                            str_name = get_text_value(stmt.get(), 0);
+                        }
                     }
-
-                    str_name = get_text_value(stmt.get(), 1);
                     
                     clearScreen();
                         cout << endl << endl;
@@ -1680,6 +1694,16 @@ bool showLecturerMenu(sqlite3* db, loginInfo login_info) {
             clearScreen();
             goto menuDsn;
         }
+    }
+    else if (option == "7") {
+        clearScreen();
+        return true;
+    }
+    else 
+    {
+        clearScreen();
+        cout << printUIErr("Invalid option. Please enter the available option!");
+        goto menuDsnErrMsg;
     }
     return false;
 }
